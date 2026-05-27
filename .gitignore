@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.py[cod]
+*.log
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+
+# Cliente: deja CSV historicos locales aqui si quieres usar replay/entrenamiento.
+data/*.csv
+!data/.gitkeep

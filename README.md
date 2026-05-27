@@ -1,0 +1,95 @@
+# Transformer Presence Backend
+
+Backend FastAPI para Transformer Presence. Recibe eventos desde Home Assistant, mantiene el estado de presencia, entrena modelos desde historicos CSV y sirve el panel web que la integracion HACS abre como iframe.
+
+## Despliegue rapido
+
+Requisitos:
+
+- Docker Engine o Docker Desktop.
+- El archivo `docker-compose.yml`.
+- Un archivo `.env` creado desde `.env.example`.
+
+Pasos:
+
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
+En Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up -d
+```
+
+URLs por defecto:
+
+- Panel: `http://localhost:8081/`
+- Swagger UI: `http://localhost:8081/docs`
+- Health: `http://localhost:8081/api/health`
+
+## Configuracion de red
+
+Edita `.env` si necesitas otro puerto o interfaz:
+
+```env
+TRANSFORMER_PRESENCE_BIND_HOST=0.0.0.0
+TRANSFORMER_PRESENCE_PORT=8081
+```
+
+La integracion HACS necesita una URL alcanzable desde Home Assistant y desde el navegador del usuario. Si el backend corre en otro equipo, usa la IP LAN o Tailscale de ese equipo:
+
+```text
+http://<ip-del-equipo-docker>:8081
+```
+
+No uses `127.0.0.1` en la integracion si Home Assistant o el navegador estan en otra maquina.
+
+## Datos y persistencia
+
+El compose monta:
+
+- `inferencia_hub_data:/app/data` para estado runtime, modelos, metricas y configuracion persistida.
+- `./data:/data:ro` para CSV historicos que quieras usar en replay o entrenamiento.
+
+Para entrenar o reproducir historicos, deja tus CSV en `data/` y usa rutas del contenedor como:
+
+```text
+/data/history-1mes_sorted.csv
+/data/history-1mes.csv
+```
+
+## Variables principales
+
+Las variables disponibles estan documentadas en `.env.example`. Las mas usadas son:
+
+- `TRANSFORMER_PRESENCE_IMAGE`: imagen Docker a ejecutar.
+- `TRANSFORMER_PRESENCE_PORT`: puerto publicado en el host.
+- `PET_FILTER_ENABLED`: activa/desactiva el filtro de mascotas.
+- `CORS_ALLOW_ORIGINS`: origenes permitidos para llamadas desde navegador.
+
+## Home Assistant
+
+Instala la integracion desde:
+
+```text
+https://github.com/GuerraF8/transformer-presence-hacs
+```
+
+Luego configura la URL base del backend con la URL publicada por este compose.
+
+## Desarrollo local de la imagen
+
+El despliegue de clientes usa la imagen publicada. Para construir localmente desde este repo:
+
+```bash
+docker build -t transformer-presence-backend:local -f inferencia_hub/Dockerfile .
+```
+
+Luego cambia en `.env`:
+
+```env
+TRANSFORMER_PRESENCE_IMAGE=transformer-presence-backend:local
+```

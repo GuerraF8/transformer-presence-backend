@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Inferencia Presencia | Simulador</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="ha-app">
+    <header class="ha-topbar" aria-label="Navegacion del modulo">
+
+
+      <nav class="ha-nav">
+        <a class="ha-nav-item" href="/"><span aria-hidden="true">P</span>Panel</a>
+        <a class="ha-nav-item active" href="/simulator.html" aria-current="page"><span aria-hidden="true">S</span>Simulador</a>
+        <a class="ha-nav-item" href="/docs" target="_blank" rel="noopener noreferrer" aria-label="Abrir Swagger UI de la API en una pestaña nueva"><span aria-hidden="true">A</span>API</a>
+      </nav>
+
+      <div class="topbar-actions">
+        <span class="pill">Modo <b id="simModeSummary">cargando</b></span>
+        <button id="simSendDataBtn" type="button" class="primary-action">Enviar datos</button>
+      </div>
+    </header>
+
+    <main class="ha-main">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Inferencia Hub</p>
+          <h1>Simulador de Sensores</h1>
+        </div>
+      </header>
+
+      <section class="workspace simulator-page" aria-label="Workspace del simulador">
+        <section class="workspace-section left-workspace">
+          <article class="surface simulator-workspace large">
+            <header class="surface-head">
+              <div>
+                <h2>Simulador de Casa</h2>
+                <p id="simLayoutSummary">real_home</p>
+              </div>
+            </header>
+
+            <div class="sim-toolbar">
+              <label>
+                Mapa
+                <select id="simLayoutSelect"></select>
+              </label>
+              <label>
+                Ocupantes
+                <select id="simOccupantCount">
+                  <option value="1">1 ocupante</option>
+                  <option value="2">2 ocupantes</option>
+                </select>
+              </label>
+              <button id="simListenModeBtn" type="button" class="secondary">Activar escucha</button>
+              <button id="simRefreshBtn" type="button" class="secondary">Recargar sensores</button>
+            </div>
+
+            <div class="home-sim-wrap">
+              <div id="simHomeSim" class="home-sim" tabindex="0" aria-label="Simulador de hogar con controles WASD y flechas"></div>
+            </div>
+
+            <div class="sim-legend">
+              <span><b class="person-dot person-dot-a"></b>Persona 1 <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>
+              <span><b class="person-dot person-dot-b"></b>Persona 2 <kbd>Up</kbd><kbd>Left</kbd><kbd>Down</kbd><kbd>Right</kbd></span>
+            </div>
+            <div id="simOccupantStatus" class="mini"></div>
+            <div id="simStatus" class="mini"></div>
+          </article>
+        </section>
+
+        <section class="workspace-section right-workspace">
+          <article class="surface">
+            <header class="surface-head">
+              <div>
+                <h2>Sensores simulados</h2>
+                <p id="simSensorSummary">0 sensores</p>
+              </div>
+            </header>
+            <div id="simSensorGrid" class="sensor-grid"></div>
+          </article>
+
+          <article class="surface">
+            <header class="surface-head">
+              <div>
+                <h2>Escenarios</h2>
+                <p id="simScenarioStatus">inactivo</p>
+              </div>
+            </header>
+            <div class="btn-grid scenario-grid">
+              <button id="simScenarioOneBtn" type="button" class="secondary">1 persona GT dormitorio</button>
+              <button id="simScenarioTwoBtn" type="button" class="secondary">2 personas GT</button>
+              <button id="simScenarioAnchorBtn" type="button" class="secondary">Dormitorio + movimiento externo</button>
+              <button id="simScenarioClearBtn" type="button" class="danger">Limpiar prueba</button>
+            </div>
+          </article>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/assets/simulator.js"></script>
+</body>
+</html>

@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Inferencia Presencia | Home Assistant</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="ha-app">
+    <header class="ha-topbar" aria-label="Navegacion del modulo">
+
+
+      <nav class="ha-nav">
+        <a class="ha-nav-item active" href="/" aria-current="page"><span aria-hidden="true">P</span>Panel</a>
+        <a class="ha-nav-item" href="/simulator.html"><span aria-hidden="true">S</span>Simulador</a>
+        <a class="ha-nav-item" href="/docs" target="_blank" rel="noopener noreferrer" aria-label="Abrir Swagger UI de la API en una pestaña nueva"><span aria-hidden="true">A</span>API</a>
+      </nav>
+
+      <div class="topbar-actions" aria-label="Controles del panel">
+        <label class="topbar-select">
+          Sección inferior
+          <select id="leftSlotSelect">
+            <option value="config">Configuración</option>
+            <option value="alerts">Alertas y eventos</option>
+          </select>
+        </label>
+        <label class="topbar-select">
+          Sección derecha
+          <select id="rightSlotSelect">
+            <option value="simulator">Simulador</option>
+            <option value="alerts">Alertas y eventos</option>
+          </select>
+        </label>
+        <span id="topStatus" class="status-chip">cargando...</span>
+      </div>
+    </header>
+
+    <main class="ha-main">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Inferencia Hub</p>
+          <h1>Modulo de inferencia de presencia</h1>
+        </div>
+        <div class="header-actions" aria-label="Estado actual">
+          <span class="pill">WebSocket <b id="wsState">desconectado</b></span>
+          <span class="pill">Modelo <b id="modelState">n/a</b></span>
+          <span class="pill">Modo <b id="modeSummary">listen</b></span>
+        </div>
+      </header>
+
+      <section class="workspace" aria-label="Workspace principal">
+        <section id="leftWorkspace" class="workspace-section left-workspace" aria-label="Mapa y sección inferior">
+          <article class="surface map-workspace">
+            <header class="surface-head">
+              <div>
+                <h2>Mapa Inferido</h2>
+                <p id="mapSupportSummary">0 aristas confirmadas</p>
+              </div>
+              <div class="tabs" role="tablist" aria-label="Seleccion de mapa">
+                <button id="mapTabFixed" class="tab-button active" type="button" role="tab" aria-selected="true">Fijo</button>
+                <button id="mapTabLive" class="tab-button" type="button" role="tab" aria-selected="false">Vivo</button>
+              </div>
+            </header>
+
+            <div class="map-panels">
+              <div id="fixedMapPanel" class="map-panel active" role="tabpanel" aria-labelledby="mapTabFixed">
+                <div class="map-meta">
+                  <strong>Mapa real de referencia</strong>
+                  <span id="realMapMeta">version - | source -</span>
+                </div>
+                <svg id="realGraph" viewBox="0 0 900 520" preserveAspectRatio="xMidYMid meet" aria-label="Grafo del mapa fijo"></svg>
+              </div>
+
+              <div id="liveMapPanel" class="map-panel" role="tabpanel" aria-labelledby="mapTabLive" hidden>
+                <div class="map-meta">
+                  <strong>Mapa inferido IA</strong>
+                  <span id="inferredMapMeta">0 aristas | habitación activa -</span>
+                </div>
+                <svg id="inferredGraph" viewBox="0 0 900 520" preserveAspectRatio="xMidYMid meet" aria-label="Grafo del mapa vivo"></svg>
+              </div>
+            </div>
+          </article>
+
+          <article id="configPanel" class="surface config-workspace">
+            <header class="surface-head">
+              <div>
+                <h2>Configuración</h2>
+                <p>Controles organizados para operación y replay.</p>
+              </div>
+            </header>
+
+            <div class="kpi-grid compact-kpis" aria-label="Metricas principales">
+              <div class="kpi"><small>Eventos</small><strong id="totalEvents">0</strong></div>
+              <div class="kpi"><small>Habitaciones</small><strong id="totalRooms">0</strong></div>
+              <div class="kpi"><small>Personas ahora</small><strong id="peopleNow">0</strong></div>
+              <div class="kpi"><small>Max personas</small><strong id="peopleMax">0</strong></div>
+            </div>
+
+            <details class="settings-card" open>
+              <summary>WebSocket</summary>
+              <div class="settings-grid">
+                <div class="setting-row">
+                  <span>Modo operativo</span>
+                  <div class="segmented">
+                    <button id="modeListenBtn" type="button" class="segment-button active">Escucha</button>
+                    <button id="modeReplayBtn" type="button" class="segment-button">Replay</button>
+                  </div>
+                </div>
+                <div id="modeStatus" class="mini"></div>
+              </div>
+            </details>
+
+            <details class="settings-card" open>
+              <summary>Sensores Home Assistant</summary>
+              <div class="settings-grid">
+                <div class="setting-row">
+                  <span>Catálogo escaneado</span>
+                  <strong id="haSensorSummary">sin datos</strong>
+                </div>
+                <div class="training-actions">
+                  <button id="haRefreshCatalogBtn" type="button" class="secondary">Refrescar catálogo</button>
+                  <button id="haCreateTestSensorsBtn" type="button" class="secondary">Crear sensores de prueba</button>
+                  <button id="haCheckDiagnosticsBtn" type="button" class="secondary">Comprobar diagnóstico</button>
+                </div>
+                <div class="training-grid">
+                  <label>
+                    Habitaciones prueba
+                    <select id="haTestRoomsInput">
+                      <option value="bedroom,kitchen,living" selected>bedroom, kitchen, living</option>
+                      <option value="bedroom,kitchen,living,sittingroom">bedroom, kitchen, living, sittingroom</option>
+                      <option value="bedroom,sittingroom,entertainment_room,foyer,kitchen,living">real_home completo</option>
+                    </select>
+                  </label>
+                  <label>
+                    Occupancy
+                    <select id="haTestOccupancyInput">
+                      <option value="true" selected>Incluir</option>
+                      <option value="false">Omitir</option>
+                    </select>
+                  </label>
+                  <label>
+                    Estado inicial
+                    <select id="haTestInitialStateInput">
+                      <option value="off" selected>OFF</option>
+                      <option value="on">ON</option>
+                    </select>
+                  </label>
+                </div>
+                <div id="haSensorStatus" class="mini"></div>
+                <div class="training-status-grid" aria-label="Diagnóstico de sensores Home Assistant">
+                  <div class="training-status-card">
+                    <small>Backend recibió</small>
+                    <b id="haDiagReceivedAt">-</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>HA escaneó</small>
+                    <b id="haDiagScannedAt">-</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Origen</small>
+                    <b id="haDiagSource">-</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Pendientes</small>
+                    <b id="haDiagPending">0</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Heartbeat HA</small>
+                    <b id="haDiagHeartbeat">-</b>
+                  </div>
+                  <div class="training-status-card wide">
+                    <small>Último resultado</small>
+                    <b id="haDiagLastResult">-</b>
+                  </div>
+                  <div class="training-status-card wide">
+                    <small>Entrada HA</small>
+                    <b id="haDiagEntry">-</b>
+                  </div>
+                </div>
+                <div id="haDiagnosticStatus" class="mini"></div>
+                <div class="setting-row">
+                  <span>Sensores reales activos</span>
+                  <strong id="realSensorSummary">sin asignaciones</strong>
+                </div>
+                <div class="training-grid">
+                  <label>
+                    Nueva habitacion
+                    <input id="realSensorNewRoomInput" type="text" placeholder="office, hallway..." />
+                  </label>
+                  <label>
+                    Modo sensores reales
+                    <select id="realSensorRequireSelect">
+                      <option value="true" selected>Solo sensores asignados</option>
+                      <option value="false">Permitir no asignados</option>
+                    </select>
+                  </label>
+                  <div class="training-actions align-end">
+                    <button id="realSensorAddRoomBtn" type="button" class="secondary">Agregar habitacion</button>
+                    <button id="realSensorApplyBtn" type="button">Aplicar sensores reales</button>
+                  </div>
+                </div>
+                <div id="realSensorStatus" class="mini"></div>
+                <div class="table-wrap compact-table">
+                  <table class="data-table" aria-label="Sensores disponibles en Home Assistant">
+                    <thead>
+                      <tr>
+                        <th>Usar</th>
+                        <th>Entidad</th>
+                        <th>Tipo</th>
+                        <th>Habitación</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="haSensorList"></tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+
+            <details class="settings-card" open>
+              <summary>Filtro mascotas</summary>
+              <div class="settings-grid">
+                <div class="setting-row">
+                  <span>Sliding window</span>
+                  <select id="petFilterEnabled">
+                    <option value="true" selected>Activado</option>
+                    <option value="false">Desactivado</option>
+                  </select>
+                </div>
+                <label>
+                  Ventana
+                  <select id="petFilterWindowInput">
+                    <option value="10">10s</option>
+                    <option value="20" selected>20s</option>
+                    <option value="30">30s</option>
+                    <option value="45">45s</option>
+                    <option value="60">60s</option>
+                    <option value="90">90s</option>
+                  </select>
+                </label>
+                <label>
+                  Eventos motion minimos
+                  <select id="petFilterMinEventsInput">
+                    <option value="1">1</option>
+                    <option value="2" selected>2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                  </select>
+                </label>
+                <label>
+                  Habitaciones distintas
+                  <select id="petFilterMinRoomsInput">
+                    <option value="1" selected>1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                  </select>
+                </label>
+                <button id="petFilterApplyBtn" type="button" class="secondary">Aplicar filtro</button>
+                <div id="petFilterStatus" class="mini"></div>
+              </div>
+            </details>
+
+            <details class="settings-card">
+              <summary>Modelo</summary>
+              <div class="metrics">
+                <div class="metric"><small>precision</small><b id="mapPrecision">0.0%</b></div>
+                <div class="metric"><small>recall</small><b id="mapRecall">0.0%</b></div>
+                <div class="metric"><small>f1</small><b id="mapF1">0.0%</b></div>
+                <div class="metric"><small>tp/fp/fn</small><b id="mapTpFpFn">0/0/0</b></div>
+                <div class="metric"><small>no adyacentes</small><b id="nonAdjTotal">0</b></div>
+                <div class="metric"><small>causas</small><b id="nonAdjBreakdown">m0 p0 e0</b></div>
+                <div class="metric"><small>lat p95 in</small><b id="latInP95">n/a</b></div>
+                <div class="metric"><small>lat p95 proc</small><b id="latProcP95">n/a</b></div>
+              </div>
+              <div class="training-panel" aria-label="Entrenamiento del modelo">
+                <div class="training-status-grid" aria-label="Estado del entrenamiento">
+                  <div class="training-status-card">
+                    <small>Estado presencia</small>
+                    <b id="presenceTrainState">No entrenado</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Muestras</small>
+                    <b id="presenceTrainSamples">0</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Conteo</small>
+                    <b id="presenceTrainCount">0.0%</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Habitaciones</small>
+                    <b id="presenceTrainRooms">0</b>
+                  </div>
+                  <div class="training-status-card wide">
+                    <small>Proceso actual</small>
+                    <b id="trainingJobStatus">Sin entrenamiento activo</b>
+                  </div>
+                  <div class="training-status-card wide">
+                    <small>Ultima actualizacion</small>
+                    <b id="trainingUpdatedAt">-</b>
+                  </div>
+                </div>
+                <div class="training-actions">
+                  <button id="trainPresenceAutoBtn" type="button">Entrenar presencia automático</button>
+                  <button id="trainPresenceManualBtn" type="button" class="secondary">Entrenar presencia manual</button>
+                  <button id="trainHistoricalBtn" type="button" class="secondary">Entrenar histórico CSV</button>
+                </div>
+                <div class="training-grid">
+                  <label>
+                    Escenarios
+                    <select id="trainScenariosInput">
+                      <option value="120">120</option>
+                      <option value="240" selected>240</option>
+                      <option value="500">500</option>
+                      <option value="1000">1000</option>
+                    </select>
+                  </label>
+                  <label>
+                    Pasos
+                    <select id="trainStepsInput">
+                      <option value="60">60</option>
+                      <option value="90" selected>90</option>
+                      <option value="150">150</option>
+                      <option value="250">250</option>
+                    </select>
+                  </label>
+                  <label>
+                    Personas max
+                    <select id="trainMaxPeopleInput">
+                      <option value="1">1</option>
+                      <option value="2" selected>2</option>
+                      <option value="3">3</option>
+                      <option value="4">4</option>
+                    </select>
+                  </label>
+                  <label>
+                    Épocas
+                    <select id="trainEpochsInput">
+                      <option value="3">3</option>
+                      <option value="5" selected>5</option>
+                      <option value="8">8</option>
+                      <option value="12">12</option>
+                    </select>
+                  </label>
+                  <label>
+                    Muestras
+                    <select id="trainMaxSamplesInput">
+                      <option value="8000">8000</option>
+                      <option value="15000" selected>15000</option>
+                      <option value="25000">25000</option>
+                      <option value="40000">40000</option>
+                    </select>
+                  </label>
+                  <label>
+                    Semilla
+                    <select id="trainSeedInput">
+                      <option value="7">7</option>
+                      <option value="42" selected>42</option>
+                      <option value="99">99</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="api-access-row">
+                  <span>API base</span>
+                  <code id="apiBaseUrl">-</code>
+                  <a href="/docs" target="_blank" rel="noopener noreferrer">Swagger UI</a>
+                </div>
+                <div class="api-access-row export-row" id="simulatedCsvRow" hidden>
+                  <span>CSV simulado</span>
+                  <code id="simulatedCsvMeta">-</code>
+                  <a id="simulatedCsvLink" href="#" download>Descargar CSV</a>
+                </div>
+                <div id="trainStatus" class="mini"></div>
+              </div>
+            </details>
+
+            <details class="settings-card" open>
+              <summary>Escenarios</summary>
+              <div class="settings-grid">
+                <label>
+                  Plantilla escenario
+                  <select id="scenarioTemplate"></select>
+                </label>
+                <div id="templateHint" class="mini"></div>
+                <label class="switch-control">
+                  <input id="useScenarioLayout" type="checkbox" />
+                  <span>Usar plantilla del mapa real para interpolar trayectorias</span>
+                </label>
+                <details class="advanced-settings">
+                  <summary>Editor avanzado de adyacencia</summary>
+                  <p class="hint">Solo para ajustes manuales del mapa real.</p>
+                  <textarea id="layoutText" spellcheck="false" aria-label="Adyacencia real"></textarea>
+                  <button id="layoutApplyBtn" type="button" class="secondary">Aplicar mapa real</button>
+                  <div id="layoutStatus" class="mini"></div>
+                  <span id="layoutMeta" class="sr-only">editable</span>
+                </details>
+              </div>
+            </details>
+
+            <div class="replay-strip" aria-label="Simulacion de replay">
+              <div>
+                <strong>Simulación de replay</strong>
+                <span id="replaySummary">idle</span>
+              </div>
+              <label>
+                Dataset
+                <select id="csvPath">
+                  <option value="/data/history-1mes_sorted.csv">history-1mes_sorted.csv</option>
+                  <option value="/data/history-1mes.csv">history-1mes.csv</option>
+                </select>
+              </label>
+              <label>
+                Velocidad
+                <select id="speedInput">
+                  <option value="10">10 eventos/s</option>
+                  <option value="30" selected>30 eventos/s</option>
+                  <option value="60">60 eventos/s</option>
+                  <option value="120">120 eventos/s</option>
+                </select>
+              </label>
+              <label>
+                Max eventos
+                <select id="maxEventsInput">
+                  <option value="0" selected>Sin límite</option>
+                  <option value="250">250</option>
+                  <option value="500">500</option>
+                  <option value="1000">1000</option>
+                </select>
+              </label>
+              <label>
+                Debounce
+                <select id="debounceInput">
+                  <option value="0">0s</option>
+                  <option value="1" selected>1s</option>
+                  <option value="3">3s</option>
+                  <option value="5">5s</option>
+                </select>
+              </label>
+              <label>
+                Step
+                <select id="stepSecondsInput">
+                  <option value="1">1s</option>
+                  <option value="3" selected>3s</option>
+                  <option value="10">10s</option>
+                  <option value="30">30s</option>
+                </select>
+              </label>
+              <div class="replay-actions">
+                <button id="replayNewBtn" type="button">Nuevo</button>
+                <button id="replayPauseBtn" type="button" class="secondary">Pausar</button>
+                <button id="replayResumeBtn" type="button">Iniciar</button>
+                <button id="replayStepBtn" type="button" class="secondary">Paso +1</button>
+                <button id="replayResetBtn" type="button" class="danger">Reset</button>
+              </div>
+              <div id="replayProgress" class="mini">progreso: 0%</div>
+              <div id="replayStatus" class="mini"></div>
+            </div>
+          </article>
+        </section>
+
+        <section id="rightWorkspace" class="workspace-section right-workspace" aria-label="Sección derecha">
+          <article id="simulatorPanel" class="surface simulator-workspace">
+            <header class="surface-head">
+              <div>
+                <h2>Simulador de Casa</h2>
+                <p id="simLayoutSummary">real_home</p>
+              </div>
+              <button id="simSendDataBtn" type="button" class="primary-action">Enviar datos</button>
+            </header>
+
+            <div class="sim-toolbar">
+              <label>
+                Mapa
+                <select id="simLayoutSelect"></select>
+              </label>
+              <label>
+                Ocupantes
+                <select id="simOccupantCount">
+                  <option value="1">1 ocupante</option>
+                  <option value="2">2 ocupantes</option>
+                </select>
+              </label>
+              <button id="simListenModeBtn" type="button" class="secondary">Activar escucha</button>
+              <button id="simRefreshBtn" type="button" class="secondary">Recargar</button>
+            </div>
+
+            <div class="home-sim-wrap">
+              <div id="simHomeSim" class="home-sim" tabindex="0" aria-label="Simulador de hogar con controles WASD y flechas"></div>
+            </div>
+
+            <div class="sim-legend">
+              <span><b class="person-dot person-dot-a"></b>Persona 1 <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>
+              <span><b class="person-dot person-dot-b"></b>Persona 2 <kbd>Up</kbd><kbd>Left</kbd><kbd>Down</kbd><kbd>Right</kbd></span>
+            </div>
+            <div id="simOccupantStatus" class="mini"></div>
+            <div id="simStatus" class="mini"></div>
+
+            <div class="room-toggle-panel">
+              <div class="title-row compact">
+                <strong>Sensores por habitacion</strong>
+                <span id="simSensorSummary">0 sensores</span>
+              </div>
+              <div id="simSensorGrid" class="sensor-grid compact"></div>
+            </div>
+
+            <div class="presence-tests">
+              <div class="title-row compact">
+                <strong>Pruebas rapidas</strong>
+                <span id="simScenarioStatus">inactivo</span>
+              </div>
+              <div class="btn-grid scenario-grid">
+                <button id="simScenarioOneBtn" type="button" class="secondary">1 persona GT dormitorio</button>
+                <button id="simScenarioTwoBtn" type="button" class="secondary">2 personas GT</button>
+                <button id="simScenarioAnchorBtn" type="button" class="secondary">Dormitorio + movimiento externo</button>
+                <button id="simScenarioClearBtn" type="button" class="danger">Limpiar prueba</button>
+              </div>
+            </div>
+            <span id="simModeSummary" class="sr-only">cargando</span>
+          </article>
+
+          <article id="alertsPanel" class="surface events-workspace">
+            <header class="surface-head">
+              <div>
+                <h2>Alertas y eventos</h2>
+                <p id="eventSummary">0 eventos</p>
+              </div>
+            </header>
+
+            <div class="table-wrap">
+              <table id="eventTable" class="data-table">
+                <thead>
+                  <tr>
+                    <th><button type="button" data-event-sort="index">#</button></th>
+                    <th><button type="button" data-event-sort="time">Hora</button></th>
+                    <th><button type="button" data-event-sort="room">Habitación</button></th>
+                    <th>Sensor</th>
+                    <th>Estado</th>
+                    <th>Personas</th>
+                    <th>Alerta</th>
+                  </tr>
+                </thead>
+                <tbody id="eventList"></tbody>
+              </table>
+            </div>
+
+            <div class="table-wrap alerts-table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Alerta</th>
+                    <th>Hora</th>
+                    <th>Causa</th>
+                    <th>Personas</th>
+                    <th>Gap</th>
+                  </tr>
+                </thead>
+                <tbody id="alertList"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/assets/app.js"></script>
+  <script type="module" src="/assets/simulator.js"></script>
+</body>
+</html>
