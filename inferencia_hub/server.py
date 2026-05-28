@@ -455,6 +455,20 @@ def health() -> dict[str, Any]:
     }
 
 
+def catalog_has_entity(entity_id: str) -> bool:
+    entities = ha_entity_catalog.get("entities") if isinstance(ha_entity_catalog, dict) else []
+    if not isinstance(entities, list):
+        return False
+    normalized = str(entity_id or "").strip().lower()
+    if not normalized:
+        return False
+    return any(
+        isinstance(entity, dict)
+        and str(entity.get("entity_id") or "").strip().lower() == normalized
+        for entity in entities
+    )
+
+
 @app.post("/api/events", tags=[TAG_INGESTION], summary="Ingestar evento de sensor")
 async def ingest_event(payload: SensorEventInput) -> dict[str, Any]:
     source = str(payload.source or "").lower()
@@ -479,10 +493,16 @@ async def ingest_event(payload: SensorEventInput) -> dict[str, Any]:
             "reason": "real_sensors_not_active",
             "input_mode": hub_state.input_mode,
         }
-    if (not is_csv and not is_simulator and not is_real_ha) and hub_state.input_mode != "listen":
+    if is_real_ha and not catalog_has_entity(payload.entity_id):
         return {
             "status": "ignored",
-            "reason": "input_mode_not_listen",
+            "reason": "sensor_not_in_ha_catalog",
+            "input_mode": hub_state.input_mode,
+        }
+    if not is_csv and not is_simulator and not is_real_ha:
+        return {
+            "status": "ignored",
+            "reason": "unknown_event_source",
             "input_mode": hub_state.input_mode,
         }
     return await hub_state.process_event(payload)

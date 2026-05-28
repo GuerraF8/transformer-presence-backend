@@ -80,6 +80,13 @@ https://github.com/GuerraF8/transformer-presence-hacs
 
 Luego configura la URL base del backend con la URL publicada por este compose.
 
+## Seguridad de sensores reales
+
+El backend mantiene una lista de sensores reales confirmados en `/api/real_sensor_config`.
+Los eventos enviados desde Home Assistant solo se procesan si el `entity_id` esta asignado, habilitado y presente en el catalogo HA vigente. Los eventos de fuentes desconocidas se ignoran.
+
+Esto protege instalaciones donde los sensores reales tienen nombres iguales a los de un historico CSV: el replay CSV usa una fuente separada y los eventos reales no afectan presencia ni alertas hasta que el usuario los confirme explicitamente desde el panel.
+
 ## Desarrollo local de la imagen
 
 El despliegue de clientes usa la imagen publicada. Para construir localmente desde este repo:

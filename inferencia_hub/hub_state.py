@@ -989,9 +989,7 @@ class InferenceHubState:
         async with self.lock:
             if is_real_ha_event:
                 assignment = self.real_sensor_assignments.get(entity_id)
-                if (not assignment and self.real_sensor_require_explicit_selection) or (
-                    assignment and not bool(assignment.get("enabled", True))
-                ):
+                if not assignment or (assignment and not bool(assignment.get("enabled", True))):
                     self.real_sensor_rejected_events += 1
                     self.real_sensor_last_rejected = {
                         "timestamp": to_utc_iso(now),
