@@ -222,6 +222,16 @@ def load_real_sensor_config() -> None:
         LOGGER.exception("No se pudo cargar real_sensor_config persistido")
 
 
+async def activate_listen_mode() -> None:
+    hub_state.input_mode = "listen"
+    hub_state.replay_stop_requested = True
+    hub_state.replay_step_budget = 0
+    if hub_state.replay_task and not hub_state.replay_task.done():
+        hub_state.replay_task.cancel()
+    hub_state.replay_paused = False
+    await hub_state.broadcast_snapshot()
+
+
 def persist_training_status() -> None:
     path = training_status_path()
     try:
@@ -549,7 +559,10 @@ def get_real_sensor_config() -> dict[str, Any]:
 async def set_real_sensor_config(config: RealSensorConfigInput) -> dict[str, Any]:
     await hub_state.configure_real_sensors(config)
     persist_real_sensor_config()
-    await hub_state.broadcast_snapshot()
+    if hub_state.real_sensor_config().get("enabled_entities"):
+        await activate_listen_mode()
+    else:
+        await hub_state.broadcast_snapshot()
     return _real_sensor_payload()
 
 
@@ -683,14 +696,10 @@ def get_input_mode() -> dict[str, Any]:
 
 @app.post("/api/input_mode", tags=[TAG_SYSTEM], summary="Cambiar modo de entrada")
 async def set_input_mode(req: RuntimeModeInput) -> dict[str, Any]:
-    hub_state.input_mode = req.mode
     if req.mode == "listen":
-        hub_state.replay_stop_requested = True
-        hub_state.replay_step_budget = 0
-        if hub_state.replay_task and not hub_state.replay_task.done():
-            hub_state.replay_task.cancel()
-        hub_state.replay_paused = False
-        await hub_state.broadcast_snapshot()
+        await activate_listen_mode()
+    else:
+        hub_state.input_mode = req.mode
     return get_input_mode()
 
 

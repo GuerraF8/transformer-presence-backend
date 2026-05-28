@@ -36,12 +36,15 @@
       activeMapTab: "fixed",
       eventSort: "time",
       leftSlot: "config",
-      rightSlot: "simulator",
+      rightSlot: "alerts",
       modelInfo: {},
       presenceFilter: {},
       haEntityCatalog: {},
       haActions: {},
       realSensorConfig: { rooms: [], assignments: [], require_explicit_selection: true },
+      realSensorDraft: null,
+      realSensorDirty: false,
+      realSensorSearch: "",
       trainingPollTimer: null,
     };
 
@@ -85,8 +88,10 @@
       haDiagnosticStatus: document.getElementById("haDiagnosticStatus"),
       realSensorSummary: document.getElementById("realSensorSummary"),
       realSensorNewRoomInput: document.getElementById("realSensorNewRoomInput"),
+      realSensorSearchInput: document.getElementById("realSensorSearchInput"),
       realSensorRequireSelect: document.getElementById("realSensorRequireSelect"),
       realSensorAddRoomBtn: document.getElementById("realSensorAddRoomBtn"),
+      realSensorResetBtn: document.getElementById("realSensorResetBtn"),
       realSensorApplyBtn: document.getElementById("realSensorApplyBtn"),
       realSensorStatus: document.getElementById("realSensorStatus"),
       petFilterEnabled: document.getElementById("petFilterEnabled"),
@@ -238,6 +243,77 @@
         });
       });
       return edges;
+    }
+
+    function cloneRealSensorConfig(config) {
+      const source = config && typeof config === "object" ? config : {};
+      const rooms = Array.isArray(source.rooms) ? source.rooms : [];
+      const assignments = Array.isArray(source.assignments) ? source.assignments : [];
+      return {
+        rooms: [...new Set(rooms.map((room) => String(room || "").trim()).filter(Boolean))].sort(),
+        assignments: assignments
+          .filter((assignment) => assignment && assignment.entity_id)
+          .map((assignment) => ({
+            entity_id: String(assignment.entity_id || "").trim(),
+            room: String(assignment.room || "").trim(),
+            enabled: assignment.enabled !== false,
+            sensor_type: String(assignment.sensor_type || "auto"),
+          })),
+        require_explicit_selection: source.require_explicit_selection !== false,
+      };
+    }
+
+    function realSensorWorkingConfig() {
+      if (!state.realSensorDraft) {
+        state.realSensorDraft = cloneRealSensorConfig(state.realSensorConfig);
+      }
+      return state.realSensorDraft;
+    }
+
+    function setRealSensorConfig(config) {
+      state.realSensorConfig = cloneRealSensorConfig({
+        ...state.realSensorConfig,
+        ...(config || {}),
+      });
+      if (!state.realSensorDirty) {
+        state.realSensorDraft = cloneRealSensorConfig(state.realSensorConfig);
+      }
+    }
+
+    function savedRealSensorByEntity() {
+      const saved = Array.isArray(state.realSensorConfig.assignments)
+        ? state.realSensorConfig.assignments
+        : [];
+      const map = new Map();
+      saved.forEach((assignment) => {
+        if (assignment && assignment.entity_id) {
+          map.set(String(assignment.entity_id), assignment);
+        }
+      });
+      return map;
+    }
+
+    function realSensorAssignmentChanged(draft, saved) {
+      const normalizedDraft = {
+        room: String((draft && draft.room) || ""),
+        enabled: !!(draft && draft.enabled !== false && draft.room),
+        sensor_type: String((draft && draft.sensor_type) || "auto"),
+      };
+      const normalizedSaved = {
+        room: String((saved && saved.room) || ""),
+        enabled: !!(saved && saved.enabled !== false && saved.room),
+        sensor_type: String((saved && saved.sensor_type) || "auto"),
+      };
+      return normalizedDraft.room !== normalizedSaved.room ||
+        normalizedDraft.enabled !== normalizedSaved.enabled ||
+        normalizedDraft.sensor_type !== normalizedSaved.sensor_type;
+    }
+
+    function markRealSensorDirty(message) {
+      state.realSensorDirty = true;
+      if (message) {
+        setMiniStatus(el.realSensorStatus, message, false);
+      }
     }
 
     function referenceRooms() {
@@ -531,11 +607,12 @@
 
     function renderHaEntityCatalog() {
       const catalog = state.haEntityCatalog || {};
-      const realConfig = state.realSensorConfig || {};
+      const realConfig = realSensorWorkingConfig();
       const entities = Array.isArray(catalog.entities) ? catalog.entities : [];
       const supported = entities.filter((entity) => entity && entity.supported !== false);
       const assignments = Array.isArray(realConfig.assignments) ? realConfig.assignments : [];
       const assignmentByEntity = new Map();
+      const savedByEntity = savedRealSensorByEntity();
       assignments.forEach((assignment) => {
         if (assignment && assignment.entity_id) {
           assignmentByEntity.set(String(assignment.entity_id), assignment);
@@ -552,12 +629,29 @@
           String(supported.length) + " compatibles / " + String(entities.length) + " detectadas";
       }
       if (el.realSensorSummary) {
+        const pendingTotal = assignments.filter((assignment) => {
+          const id = assignment && assignment.entity_id ? String(assignment.entity_id) : "";
+          return id && realSensorAssignmentChanged(assignment, savedByEntity.get(id));
+        }).length;
         el.realSensorSummary.textContent =
           String(enabledAssignments.length) + " sensores activos / " +
-          String(configuredRooms.length) + " habitaciones reales";
+          String(configuredRooms.length) + " habitaciones reales" +
+          (state.realSensorDirty ? " | " + String(pendingTotal) + " cambios pendientes" : "");
       }
       if (el.realSensorRequireSelect) {
-        el.realSensorRequireSelect.value = realConfig.require_explicit_selection === false ? "false" : "true";
+        const draftMode = realConfig.require_explicit_selection === false ? "false" : "true";
+        if (el.realSensorRequireSelect.value !== draftMode) {
+          el.realSensorRequireSelect.value = draftMode;
+        }
+      }
+      if (el.realSensorSearchInput && el.realSensorSearchInput.value !== state.realSensorSearch) {
+        el.realSensorSearchInput.value = state.realSensorSearch;
+      }
+      if (el.realSensorApplyBtn) {
+        el.realSensorApplyBtn.disabled = !state.realSensorDirty;
+      }
+      if (el.realSensorResetBtn) {
+        el.realSensorResetBtn.disabled = !state.realSensorDirty;
       }
       if (el.haSensorStatus) {
         const scannedAt = catalog.scanned_at ? formatTime(catalog.scanned_at) : "sin escaneo";
@@ -576,17 +670,59 @@
         el.haSensorList.appendChild(tr);
         return;
       }
-      entities.slice(0, 80).forEach((entity) => {
+      const query = state.realSensorSearch.trim().toLowerCase();
+      const searchableEntities = query
+        ? entities.filter((entity) => {
+          const haystack = [
+            entity.entity_id,
+            entity.name,
+            entity.domain,
+            entity.state,
+            entity.sensor_type,
+            entity.room,
+            entity.device_class,
+          ].map((value) => String(value || "").toLowerCase()).join(" ");
+          return haystack.includes(query);
+        })
+        : entities;
+      if (!searchableEntities.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 5;
+        td.textContent = "Sin entidades para la busqueda actual";
+        tr.appendChild(td);
+        el.haSensorList.appendChild(tr);
+        return;
+      }
+      searchableEntities.slice(0, 160).forEach((entity) => {
         const entityId = String(entity.entity_id || "");
         const assignment = assignmentByEntity.get(entityId) || {};
+        const selected = assignment.enabled !== false && !!assignment.room;
+        const pending = realSensorAssignmentChanged(assignment, savedByEntity.get(entityId));
         const tr = document.createElement("tr");
+        tr.classList.toggle("real-sensor-selected", selected);
+        tr.classList.toggle("real-sensor-pending", pending);
 
         const useCell = document.createElement("td");
+        useCell.className = "real-sensor-cell";
         const useInput = document.createElement("input");
         useInput.type = "checkbox";
-        useInput.checked = assignment.enabled !== false && !!assignment.room;
+        useInput.checked = selected;
         useInput.dataset.realSensorEnabled = entityId;
+        useInput.setAttribute("aria-label", "Usar " + entityId);
         useCell.appendChild(useInput);
+        if (selected) {
+          const selectedLabel = document.createElement("span");
+          selectedLabel.className = "selection-check";
+          selectedLabel.textContent = "OK";
+          useCell.appendChild(selectedLabel);
+        }
+        if (pending) {
+          const pendingLabel = document.createElement("span");
+          pendingLabel.className = "pending-check";
+          pendingLabel.textContent = "pendiente";
+          useCell.appendChild(pendingLabel);
+        }
         tr.appendChild(useCell);
         appendCell(tr, entityId || "-");
 
@@ -633,10 +769,11 @@
     function upsertRealSensorAssignment(entityId) {
       const id = String(entityId || "").trim();
       if (!id) return null;
-      if (!Array.isArray(state.realSensorConfig.assignments)) {
-        state.realSensorConfig.assignments = [];
+      const realConfig = realSensorWorkingConfig();
+      if (!Array.isArray(realConfig.assignments)) {
+        realConfig.assignments = [];
       }
-      let assignment = state.realSensorConfig.assignments.find((item) => item && item.entity_id === id);
+      let assignment = realConfig.assignments.find((item) => item && item.entity_id === id);
       if (!assignment) {
         assignment = {
           entity_id: id,
@@ -644,7 +781,7 @@
           enabled: false,
           sensor_type: "auto",
         };
-        state.realSensorConfig.assignments.push(assignment);
+        realConfig.assignments.push(assignment);
       }
       return assignment;
     }
@@ -662,10 +799,11 @@
           assignment.room = roomSelect ? roomSelect.value : assignment.room;
           assignment.sensor_type = typeSelect ? typeSelect.value : assignment.sensor_type || "auto";
           if (assignment.enabled && !assignment.room) {
-            const rooms = referenceRooms();
+            const rooms = [...new Set([...(realSensorWorkingConfig().rooms || []), ...referenceRooms()])];
             assignment.room = rooms[0] || "";
             if (roomSelect) roomSelect.value = assignment.room;
           }
+          markRealSensorDirty("cambio pendiente: confirma para aplicar sensores reales");
           renderHaEntityCatalog();
         });
       });
@@ -678,6 +816,7 @@
           assignment.room = select.value;
           assignment.enabled = !!select.value;
           if (checkbox) checkbox.checked = assignment.enabled;
+          markRealSensorDirty("cambio pendiente: confirma para aplicar sensores reales");
           renderHaEntityCatalog();
         });
       });
@@ -686,16 +825,19 @@
           const assignment = upsertRealSensorAssignment(select.dataset.realSensorType || "");
           if (!assignment) return;
           assignment.sensor_type = select.value || "auto";
+          markRealSensorDirty("cambio pendiente: confirma para aplicar sensores reales");
+          renderHaEntityCatalog();
         });
       });
     }
 
     function buildRealSensorPayload() {
-      const rooms = [...new Set([...(state.realSensorConfig.rooms || []), ...referenceRooms()])]
+      const realConfig = realSensorWorkingConfig();
+      const rooms = [...new Set([...(realConfig.rooms || []), ...referenceRooms()])]
         .map((room) => String(room || "").trim())
         .filter(Boolean)
         .sort();
-      const assignments = (state.realSensorConfig.assignments || [])
+      const assignments = (realConfig.assignments || [])
         .map((assignment) => ({
           entity_id: String(assignment.entity_id || "").trim(),
           room: String(assignment.room || "").trim(),
@@ -708,7 +850,7 @@
         assignments,
         require_explicit_selection: el.realSensorRequireSelect
           ? el.realSensorRequireSelect.value !== "false"
-          : state.realSensorConfig.require_explicit_selection !== false,
+          : realConfig.require_explicit_selection !== false,
       };
     }
 
@@ -716,21 +858,26 @@
       if (!el.realSensorNewRoomInput) return;
       const room = el.realSensorNewRoomInput.value.trim().toLowerCase().replace(/\s+/g, "_");
       if (!room) return;
-      const rooms = new Set([...(state.realSensorConfig.rooms || []), ...referenceRooms()]);
+      const realConfig = realSensorWorkingConfig();
+      const rooms = new Set([...(realConfig.rooms || []), ...referenceRooms()]);
       rooms.add(room);
-      state.realSensorConfig.rooms = [...rooms].sort();
+      realConfig.rooms = [...rooms].sort();
       el.realSensorNewRoomInput.value = "";
-      setMiniStatus(el.realSensorStatus, "habitacion agregada: " + roomLabel(room), false);
+      markRealSensorDirty("habitacion pendiente: " + roomLabel(room));
       renderAll();
+    }
+
+    function resetRealSensorDraft() {
+      state.realSensorDraft = cloneRealSensorConfig(state.realSensorConfig);
+      state.realSensorDirty = false;
+      setMiniStatus(el.realSensorStatus, "cambios descartados", false);
+      renderHaEntityCatalog();
     }
 
     async function fetchRealSensorConfig() {
       const payload = await fetchJson("/api/real_sensor_config", { cache: "no-store" });
       if (payload && payload.config) {
-        state.realSensorConfig = {
-          ...state.realSensorConfig,
-          ...payload.config,
-        };
+        setRealSensorConfig(payload.config);
       }
       if (payload && payload.catalog) {
         state.haEntityCatalog = payload.catalog;
@@ -749,10 +896,9 @@
           body: JSON.stringify(payload),
         });
         if (result && result.config) {
-          state.realSensorConfig = {
-            ...state.realSensorConfig,
-            ...result.config,
-          };
+          state.realSensorDirty = false;
+          setRealSensorConfig(result.config);
+          state.realSensorDraft = cloneRealSensorConfig(state.realSensorConfig);
         }
         if (result && result.catalog) {
           state.haEntityCatalog = result.catalog;
@@ -1139,10 +1285,7 @@
       }
 
       if (simData.real_sensor_config) {
-        state.realSensorConfig = {
-          ...state.realSensorConfig,
-          ...simData.real_sensor_config,
-        };
+        setRealSensorConfig(simData.real_sensor_config);
       }
 
       if (simData.replay) {
@@ -1763,6 +1906,22 @@
       }
       if (el.realSensorAddRoomBtn) {
         el.realSensorAddRoomBtn.addEventListener("click", addRealSensorRoom);
+      }
+      if (el.realSensorSearchInput) {
+        el.realSensorSearchInput.addEventListener("input", () => {
+          state.realSensorSearch = el.realSensorSearchInput.value || "";
+          renderHaEntityCatalog();
+        });
+      }
+      if (el.realSensorRequireSelect) {
+        el.realSensorRequireSelect.addEventListener("change", () => {
+          realSensorWorkingConfig().require_explicit_selection = el.realSensorRequireSelect.value !== "false";
+          markRealSensorDirty("modo pendiente: confirma para aplicar sensores reales");
+          renderHaEntityCatalog();
+        });
+      }
+      if (el.realSensorResetBtn) {
+        el.realSensorResetBtn.addEventListener("click", resetRealSensorDraft);
       }
       if (el.realSensorApplyBtn) {
         el.realSensorApplyBtn.addEventListener("click", applyRealSensorConfig);

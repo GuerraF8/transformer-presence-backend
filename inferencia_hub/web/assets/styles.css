@@ -1075,6 +1075,14 @@ kbd {
   border-bottom: 0;
 }
 
+.data-table tr.real-sensor-selected td {
+  background: rgba(72, 217, 190, 0.08);
+}
+
+.data-table tr.real-sensor-pending td {
+  box-shadow: inset 3px 0 0 var(--ha-accent-strong);
+}
+
 .data-table select {
   width: 100%;
   min-height: 36px;
@@ -1084,6 +1092,33 @@ kbd {
   width: 20px;
   height: 20px;
   accent-color: var(--ha-accent);
+}
+
+.real-sensor-cell {
+  min-width: 132px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selection-check,
+.pending-check {
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 3px 7px;
+  display: inline-flex;
+  align-items: center;
+  color: #052319;
+  background: var(--ha-ok);
+  font-size: 0.68rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pending-check {
+  color: #05262c;
+  background: var(--ha-accent-strong);
 }
 
 .status-badge {

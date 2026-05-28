@@ -29,7 +29,7 @@
           Sección derecha
           <select id="rightSlotSelect">
             <option value="simulator">Simulador</option>
-            <option value="alerts">Alertas y eventos</option>
+            <option value="alerts" selected>Alertas y eventos</option>
           </select>
         </label>
         <span id="topStatus" class="status-chip">cargando...</span>
@@ -189,6 +189,10 @@
                     <input id="realSensorNewRoomInput" type="text" placeholder="office, hallway..." />
                   </label>
                   <label>
+                    Buscar entidad
+                    <input id="realSensorSearchInput" type="search" placeholder="sensor, habitacion, estado..." />
+                  </label>
+                  <label>
                     Modo sensores reales
                     <select id="realSensorRequireSelect">
                       <option value="true" selected>Solo sensores asignados</option>
@@ -197,7 +201,8 @@
                   </label>
                   <div class="training-actions align-end">
                     <button id="realSensorAddRoomBtn" type="button" class="secondary">Agregar habitacion</button>
-                    <button id="realSensorApplyBtn" type="button">Aplicar sensores reales</button>
+                    <button id="realSensorResetBtn" type="button" class="secondary">Descartar cambios</button>
+                    <button id="realSensorApplyBtn" type="button">Confirmar seleccion</button>
                   </div>
                 </div>
                 <div id="realSensorStatus" class="mini"></div>
