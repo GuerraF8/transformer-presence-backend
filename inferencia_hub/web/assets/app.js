@@ -1,5 +1,9 @@
     import { buildReplayPayload } from "./replay.js";
 
+    const queryParams = new URLSearchParams(window.location.search);
+    const embeddedMode = queryParams.get("embedded") === "1";
+    const devMode = !embeddedMode || queryParams.get("dev") === "1";
+
     const state = {
       ws: null,
       rooms: [],
@@ -35,8 +39,6 @@
       applyingTemplate: false,
       activeMapTab: "fixed",
       eventSort: "time",
-      leftSlot: "config",
-      rightSlot: "alerts",
       modelInfo: {},
       presenceFilter: {},
       haEntityCatalog: {},
@@ -154,11 +156,46 @@
       leftWorkspace: document.getElementById("leftWorkspace"),
       rightWorkspace: document.getElementById("rightWorkspace"),
       configPanel: document.getElementById("configPanel"),
-      simulatorPanel: document.getElementById("simulatorPanel"),
       alertsPanel: document.getElementById("alertsPanel"),
-      leftSlotSelect: document.getElementById("leftSlotSelect"),
-      rightSlotSelect: document.getElementById("rightSlotSelect"),
+      configDialog: document.getElementById("configDialog"),
+      configOpenBtn: document.getElementById("configOpenBtn"),
+      configCloseBtn: document.getElementById("configCloseBtn"),
     };
+
+    let configDialogReturnFocus = null;
+
+    function applyDevMode() {
+      document.querySelectorAll("[data-dev-only]").forEach((node) => {
+        node.hidden = !devMode;
+      });
+
+      const simulatorLink = document.querySelector('a[href^="/simulator.html"][data-dev-only]');
+      if (simulatorLink && embeddedMode && devMode) {
+        simulatorLink.href = "/simulator.html?embedded=1&dev=1";
+      }
+    }
+
+    function openConfigDialog() {
+      if (!el.configDialog || el.configDialog.open) return;
+      configDialogReturnFocus = document.activeElement;
+      el.configDialog.showModal();
+      window.setTimeout(() => {
+        if (el.configCloseBtn) el.configCloseBtn.focus();
+      }, 0);
+    }
+
+    function closeConfigDialog() {
+      if (el.configDialog && el.configDialog.open) {
+        el.configDialog.close();
+      }
+    }
+
+    function restoreConfigDialogFocus() {
+      if (configDialogReturnFocus && typeof configDialogReturnFocus.focus === "function") {
+        configDialogReturnFocus.focus();
+      }
+      configDialogReturnFocus = null;
+    }
 
     function setTopStatus(text, isError) {
       el.topStatus.textContent = text;
@@ -724,11 +761,15 @@
           useCell.appendChild(pendingLabel);
         }
         tr.appendChild(useCell);
-        appendCell(tr, entityId || "-");
+        const entityCell = document.createElement("th");
+        entityCell.scope = "row";
+        entityCell.textContent = entityId || "-";
+        tr.appendChild(entityCell);
 
         const typeCell = document.createElement("td");
         const typeSelect = document.createElement("select");
         typeSelect.dataset.realSensorType = entityId;
+        typeSelect.setAttribute("aria-label", "Tipo de sensor para " + entityId);
         ["auto", "motion", "door", "occupancy", "other"].forEach((sensorType) => {
           const option = document.createElement("option");
           option.value = sensorType;
@@ -742,6 +783,7 @@
         const roomCell = document.createElement("td");
         const roomSelect = document.createElement("select");
         roomSelect.dataset.realSensorRoom = entityId;
+        roomSelect.setAttribute("aria-label", "Habitación asignada a " + entityId);
         const emptyOption = document.createElement("option");
         emptyOption.value = "";
         emptyOption.textContent = "Sin asignar";
@@ -1013,11 +1055,15 @@
       const progress = Number(replay.progress || 0);
 
       el.modeListenBtn.disabled = mode === "listen" && !running;
-      el.modeReplayBtn.disabled = mode === "replay";
+      if (el.modeReplayBtn) {
+        el.modeReplayBtn.disabled = mode === "replay";
+      }
       el.modeSummary.textContent =
         mode === "replay" ? "replay historico" : (mode === "simulator" ? "simulador" : "sensores reales");
       el.modeListenBtn.classList.toggle("active", mode === "listen");
-      el.modeReplayBtn.classList.toggle("active", mode === "replay");
+      if (el.modeReplayBtn) {
+        el.modeReplayBtn.classList.toggle("active", mode === "replay");
+      }
 
       if (running && paused) {
         el.replaySummary.textContent = "pausado";
@@ -1179,41 +1225,6 @@
       el.liveMapPanel.hidden = !isLive;
       el.fixedMapPanel.classList.toggle("active", !isLive);
       el.liveMapPanel.classList.toggle("active", isLive);
-    }
-
-    function applySlotLayout() {
-      if (state.rightSlot === "alerts") {
-        state.leftSlot = "config";
-      }
-
-      el.leftSlotSelect.value = state.leftSlot;
-      el.rightSlotSelect.value = state.rightSlot;
-
-      el.leftWorkspace.classList.toggle("left-alerts", state.leftSlot === "alerts");
-      el.leftWorkspace.classList.toggle("left-config", state.leftSlot === "config");
-      el.rightWorkspace.classList.toggle("right-alerts", state.rightSlot === "alerts");
-      el.rightWorkspace.classList.toggle("right-simulator", state.rightSlot === "simulator");
-
-      el.configPanel.hidden = true;
-      el.simulatorPanel.hidden = true;
-      el.alertsPanel.hidden = true;
-
-      if (state.leftSlot === "alerts") {
-        el.leftWorkspace.appendChild(el.alertsPanel);
-        el.alertsPanel.hidden = false;
-      } else {
-        el.leftWorkspace.appendChild(el.configPanel);
-        el.configPanel.hidden = false;
-      }
-
-      if (state.rightSlot === "alerts") {
-        el.rightWorkspace.appendChild(el.alertsPanel);
-        el.alertsPanel.hidden = false;
-        return;
-      }
-
-      el.rightWorkspace.appendChild(el.simulatorPanel);
-      el.simulatorPanel.hidden = false;
     }
 
     function renderAll() {
@@ -1890,7 +1901,38 @@
 
     function registerActions() {
       el.modeListenBtn.addEventListener("click", () => setInputMode("listen"));
-      el.modeReplayBtn.addEventListener("click", () => setInputMode("replay"));
+      if (el.modeReplayBtn) {
+        el.modeReplayBtn.addEventListener("click", () => setInputMode("replay"));
+      }
+      if (el.configOpenBtn) {
+        el.configOpenBtn.addEventListener("click", openConfigDialog);
+      }
+      if (el.configCloseBtn) {
+        el.configCloseBtn.addEventListener("click", closeConfigDialog);
+      }
+      if (el.configDialog) {
+        el.configDialog.addEventListener("close", restoreConfigDialogFocus);
+        el.configDialog.addEventListener("cancel", (event) => {
+          event.preventDefault();
+          closeConfigDialog();
+        });
+        el.configDialog.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            closeConfigDialog();
+          }
+        });
+        el.configDialog.addEventListener("click", (event) => {
+          if (event.target !== el.configDialog) return;
+          const rect = el.configDialog.getBoundingClientRect();
+          const inside =
+            event.clientX >= rect.left &&
+            event.clientX <= rect.right &&
+            event.clientY >= rect.top &&
+            event.clientY <= rect.bottom;
+          if (!inside) closeConfigDialog();
+        });
+      }
       if (el.haRefreshCatalogBtn) {
         el.haRefreshCatalogBtn.addEventListener("click", refreshHaCatalog);
       }
@@ -1943,20 +1985,6 @@
       el.scenarioTemplate.addEventListener("change", applyScenarioTemplate);
       el.mapTabFixed.addEventListener("click", () => setMapTab("fixed"));
       el.mapTabLive.addEventListener("click", () => setMapTab("live"));
-      el.leftSlotSelect.addEventListener("change", () => {
-        state.leftSlot = el.leftSlotSelect.value === "alerts" ? "alerts" : "config";
-        if (state.leftSlot === "alerts") {
-          state.rightSlot = "simulator";
-        }
-        applySlotLayout();
-      });
-      el.rightSlotSelect.addEventListener("change", () => {
-        state.rightSlot = el.rightSlotSelect.value === "alerts" ? "alerts" : "simulator";
-        if (state.rightSlot === "alerts") {
-          state.leftSlot = "config";
-        }
-        applySlotLayout();
-      });
       document.querySelectorAll("[data-event-sort]").forEach((button) => {
         button.addEventListener("click", () => {
           state.eventSort = button.getAttribute("data-event-sort") || "time";
@@ -1966,9 +1994,9 @@
     }
 
     async function init() {
+      applyDevMode();
       registerActions();
       setMapTab("fixed");
-      applySlotLayout();
       el.apiBaseUrl.textContent = window.location.origin;
 
       try {
