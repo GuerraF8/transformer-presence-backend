@@ -33,6 +33,7 @@ try:
         to_adjacency,
         to_utc_iso,
     )
+    from .presence_contract import build_presence_snapshot
 except ImportError:  # pragma: no cover - supports `uvicorn server:app` in Docker
     from ai_model import AIAdjacencyModel
     from domain import (
@@ -57,6 +58,7 @@ except ImportError:  # pragma: no cover - supports `uvicorn server:app` in Docke
         to_adjacency,
         to_utc_iso,
     )
+    from presence_contract import build_presence_snapshot
 
 class InferenceHubState:
     def __init__(self) -> None:
@@ -1253,6 +1255,8 @@ class InferenceHubState:
                 "habitacion": room,
                 "habitacion_inferida_ia": self.current_room or room,
                 "confianza_presencia": round(confidence, 4),
+                "input_mode": self.input_mode,
+                "updated_at": event["timestamp"],
                 "relacion_habitaciones": relation,
                 "ocupacion_estimada": occupancy_count,
                 "personas_estimadas": estimated_people,
@@ -1310,6 +1314,7 @@ class InferenceHubState:
             if a in visible_room_set and b in visible_room_set
         ]
         running = bool(self.replay_task and not self.replay_task.done())
+        latest_event = self.events[-1] if self.events else None
 
         return {
             "schema_version": "2.0-ai-live",
@@ -1340,12 +1345,16 @@ class InferenceHubState:
                 "edges": inferred_live_edges,
                 "latest_touched_edge": list(self.latest_touched_edge) if self.latest_touched_edge else None,
             },
-            "presence": {
-                "current_room": self.current_room,
-                "active_rooms": self.current_active_rooms,
-                "occupancy_ground_truth_rooms": sorted(self.occupancy_confirmed_by_room.keys()),
-                "live_sensor_rooms": sorted(self.active_sensor_types_by_room.keys()),
-            },
+            "presence": build_presence_snapshot(
+                current_room=self.current_room,
+                active_rooms=self.current_active_rooms,
+                people_estimate=self.current_people_estimate,
+                latest_event=latest_event,
+                occupancy_ground_truth_rooms=sorted(
+                    self.occupancy_confirmed_by_room.keys()
+                ),
+                live_sensor_rooms=sorted(self.active_sensor_types_by_room.keys()),
+            ),
             "presence_filter": self._presence_filter_config_locked(),
             "real_sensor_config": self._real_sensor_config_locked(),
             "evaluation": self._evaluation_metrics_locked(),
