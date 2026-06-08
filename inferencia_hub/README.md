@@ -15,6 +15,10 @@ Servicio externo para inferencia de presencia + visualizacion en vivo.
 - Estado de replay: `GET /api/replay_status`
 - Reset de estado: `POST /api/reset`
 - Snapshot compatible con `sim_data.json`: `GET /api/sim_data`
+- Configuracion del historial SQLite: `GET/PUT /api/history/config`
+- Consulta paginada y filtrada: `GET /api/history/events`
+- Serie de presencia y personas: `GET /api/history/presence`
+- Borrado total confirmado: `POST /api/history/purge`
 - WebSocket para panel live: `ws://<host>:8080/presencia`
 - Web UI servida desde `/` (usa `inferencia_hub/web/index.html`)
 
@@ -46,6 +50,28 @@ Opcionalmente puede ejecutar una validacion semantica del mapa con Ollama (`qwen
 ```
 
 Campos `sensor_type`, `room` y `timestamp` son opcionales; el servicio los infiere cuando faltan.
+
+## Historial persistente
+
+La version 0.3.0 guarda en `/app/data/presence_history.sqlite3` el evento original,
+la inferencia resultante y el modo de entrada. SQLite usa WAL, migraciones con
+`PRAGMA user_version`, indices de consulta y limpieza por retencion.
+
+La vista inicial del panel consulta las ultimas 24 horas del modo `listen`, con
+50 filas por pagina. Los filtros por sensor, tipo, habitacion, modo y fechas se
+aplican tanto a la tabla como al grafico escalonado.
+
+Variables iniciales:
+
+```env
+HISTORY_DB_PATH=/app/data/presence_history.sqlite3
+HISTORY_ENABLED=1
+HISTORY_RETENTION_DAYS=365
+HISTORY_PERSIST_MODES=listen,replay,simulator
+```
+
+Los valores editables quedan guardados en SQLite. Cambiar `HISTORY_DB_PATH`
+requiere reiniciar. `POST /api/reset` conserva el historial.
 
 ## Entrenar modelo desde historial
 

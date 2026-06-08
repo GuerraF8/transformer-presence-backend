@@ -20,6 +20,8 @@ try:
         CsvReplayRequest,
         HAActionRequestInput,
         HAEntityCatalogInput,
+        HistoryConfigInput,
+        HistoryPurgeInput,
         LayoutReferenceInput,
         PresenceFilterConfigInput,
         RealSensorConfigInput,
@@ -40,12 +42,15 @@ try:
         shortest_path_rooms,
         to_utc_iso,
     )
+    from .history_store import history_store_from_env
     from .hub_state import InferenceHubState
 except ImportError:  # pragma: no cover - supports `uvicorn server:app` in Docker
     from domain import (
         CsvReplayRequest,
         HAActionRequestInput,
         HAEntityCatalogInput,
+        HistoryConfigInput,
+        HistoryPurgeInput,
         LayoutReferenceInput,
         PresenceFilterConfigInput,
         RealSensorConfigInput,
@@ -66,23 +71,26 @@ except ImportError:  # pragma: no cover - supports `uvicorn server:app` in Docke
         shortest_path_rooms,
         to_utc_iso,
     )
+    from history_store import history_store_from_env
     from hub_state import InferenceHubState
 
 TAG_STATUS = "01 Estado"
 TAG_INGESTION = "02 Ingesta"
 TAG_PRESENCE = "03 Presencia"
-TAG_MODEL = "04 Modelo"
-TAG_TRAINING = "05 Entrenamiento"
-TAG_REPLAY = "06 Replay"
-TAG_LAYOUT = "07 Layout y metricas"
-TAG_SCENARIOS = "08 Escenarios"
-TAG_DOWNLOADS = "09 Descargas"
-TAG_SYSTEM = "10 Sistema"
+TAG_HISTORY = "04 Historial"
+TAG_MODEL = "05 Modelo"
+TAG_TRAINING = "06 Entrenamiento"
+TAG_REPLAY = "07 Replay"
+TAG_LAYOUT = "08 Layout y metricas"
+TAG_SCENARIOS = "09 Escenarios"
+TAG_DOWNLOADS = "10 Descargas"
+TAG_SYSTEM = "11 Sistema"
 
 OPENAPI_TAGS = [
     {"name": TAG_STATUS, "description": "Salud del backend y estado operativo general."},
     {"name": TAG_INGESTION, "description": "Recepcion de eventos normalizados desde Home Assistant o simulador."},
     {"name": TAG_PRESENCE, "description": "Snapshot de presencia, filtros temporales y estado inferido."},
+    {"name": TAG_HISTORY, "description": "Persistencia y consulta historica de eventos e inferencias."},
     {"name": TAG_MODEL, "description": "Metadata del modelo de inferencia y transformadores entrenados."},
     {"name": TAG_TRAINING, "description": "Entrenamiento desde historico CSV o datos sinteticos del simulador."},
     {"name": TAG_REPLAY, "description": "Replay de historicos CSV y control de ejecucion paso a paso."},
@@ -94,10 +102,11 @@ OPENAPI_TAGS = [
 
 app = FastAPI(
     title="Inferencia Presencia Hub",
-    version="0.2.0",
+    version="0.3.0",
     openapi_tags=OPENAPI_TAGS,
 )
 hub_state = InferenceHubState()
+history_store = history_store_from_env()
 WEB_DIR = Path(os.getenv("WEB_DIR", "/app/web")).resolve()
 LOGGER = logging.getLogger("inferencia_hub")
 ha_entity_catalog: dict[str, Any] = {
@@ -150,6 +159,57 @@ def training_status_path() -> Path:
 
 def real_sensor_config_path() -> Path:
     return Path(os.getenv("REAL_SENSOR_CONFIG_PATH", str(data_dir() / "real_sensor_config.json")))
+
+
+def history_sensor_name(entity_id: str) -> str:
+    normalized = str(entity_id or "").strip().lower()
+    entities = ha_entity_catalog.get("entities") if isinstance(ha_entity_catalog, dict) else []
+    for entity in entities if isinstance(entities, list) else []:
+        if not isinstance(entity, dict):
+            continue
+        if str(entity.get("entity_id") or "").strip().lower() == normalized:
+            return str(entity.get("name") or entity_id)
+    return entity_id
+
+
+async def persist_history_event(
+    payload: SensorEventInput,
+    event: dict[str, Any],
+    response: dict[str, Any],
+) -> None:
+    input_mode = str(event.get("input_mode") or "listen")
+    record = {
+        "event_timestamp": event["timestamp"],
+        "entity_id": event["entity_id"],
+        "sensor_name": history_sensor_name(event["entity_id"]),
+        "sensor_type": event["sensor_type"],
+        "room": event["room"],
+        "state": event["state"],
+        "source": event.get("source") or payload.source,
+        "input_mode": input_mode,
+        "inferred_presence": str(event.get("inferred_presence") or "").lower()
+        == "presente",
+        "inferred_room": event.get("presence_room") or "",
+        "confidence": event.get("presence_confidence"),
+        "estimated_people": event.get("estimated_people") or 0,
+        "active_rooms": event.get("active_rooms") or [],
+        "layout_alert": event.get("layout_alert"),
+        "raw_payload": {
+            "entity_id": payload.entity_id,
+            "state": payload.state,
+            "sensor_type": payload.sensor_type,
+            "room": payload.room,
+            "timestamp": event["timestamp"],
+            "source": payload.source,
+        },
+        "inference_payload": response,
+    }
+    stored = await history_store.enqueue(record, wait=input_mode == "listen")
+    if input_mode == "listen" and not stored and history_store.should_persist(input_mode):
+        LOGGER.error("No se pudo confirmar la escritura del evento %s", event["entity_id"])
+
+
+hub_state.event_sink = persist_history_event
 
 cors_origins_raw = os.getenv("CORS_ALLOW_ORIGINS", "*").strip()
 cors_origins = ["*"] if cors_origins_raw == "*" else [
@@ -372,6 +432,7 @@ def mark_training_status(
 
 @app.on_event("startup")
 async def startup_train_model() -> None:
+    await history_store.start()
     load_training_status()
     load_real_sensor_config()
     model_load = await asyncio.to_thread(hub_state.ai_model.load_state, model_state_dir())
@@ -423,6 +484,11 @@ async def startup_train_model() -> None:
     asyncio.create_task(_run())
 
 
+@app.on_event("shutdown")
+async def shutdown_history_store() -> None:
+    await history_store.stop()
+
+
 @app.get("/api/health", tags=[TAG_STATUS], summary="Estado del backend")
 def health() -> dict[str, Any]:
     running = bool(hub_state.replay_task and not hub_state.replay_task.done())
@@ -452,6 +518,7 @@ def health() -> dict[str, Any]:
             "entities_total": ha_entity_catalog.get("entities_total", 0),
             "supported_total": ha_entity_catalog.get("supported_total", 0),
         },
+        "history": history_store.status(),
     }
 
 
@@ -513,6 +580,122 @@ def get_sim_data() -> dict[str, Any]:
     snapshot = hub_state.snapshot()
     snapshot["ha_entity_catalog"] = ha_entity_catalog
     return snapshot
+
+
+def normalize_history_timestamp(value: str, field_name: str) -> str:
+    if not value:
+        return ""
+    try:
+        return to_utc_iso(parse_iso_datetime(value))
+    except (TypeError, ValueError) as err:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{field_name} debe ser una fecha ISO valida",
+        ) from err
+
+
+@app.get(
+    "/api/history/config",
+    tags=[TAG_HISTORY],
+    summary="Configuracion y estado del historial",
+)
+async def get_history_config() -> dict[str, Any]:
+    return await asyncio.to_thread(history_store.status)
+
+
+@app.put(
+    "/api/history/config",
+    tags=[TAG_HISTORY],
+    summary="Actualizar configuracion del historial",
+)
+async def update_history_config(config: HistoryConfigInput) -> dict[str, Any]:
+    try:
+        await asyncio.to_thread(
+            history_store.update_config,
+            enabled=config.enabled,
+            retention_days=config.retention_days,
+            persisted_modes=list(config.persisted_modes),
+        )
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+    return await asyncio.to_thread(history_store.status)
+
+
+@app.get(
+    "/api/history/events",
+    tags=[TAG_HISTORY],
+    summary="Consultar eventos historicos",
+)
+async def get_history_events(
+    query: str = "",
+    sensor_type: str = "",
+    room: str = "",
+    input_mode: str = "",
+    from_ts: str = "",
+    to_ts: str = "",
+    page: int = 1,
+    page_size: int = 50,
+) -> dict[str, Any]:
+    normalized_from = normalize_history_timestamp(from_ts, "from_ts")
+    normalized_to = normalize_history_timestamp(to_ts, "to_ts")
+    if normalized_from and normalized_to and normalized_from > normalized_to:
+        raise HTTPException(status_code=422, detail="from_ts no puede ser posterior a to_ts")
+    return await asyncio.to_thread(
+        history_store.query_events,
+        query=query,
+        sensor_type=sensor_type,
+        room=room,
+        input_mode=input_mode,
+        from_ts=normalized_from,
+        to_ts=normalized_to,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@app.get(
+    "/api/history/presence",
+    tags=[TAG_HISTORY],
+    summary="Consultar serie historica de presencia",
+)
+async def get_history_presence(
+    query: str = "",
+    sensor_type: str = "",
+    room: str = "",
+    input_mode: str = "",
+    from_ts: str = "",
+    to_ts: str = "",
+    max_points: int = 1000,
+) -> dict[str, Any]:
+    normalized_from = normalize_history_timestamp(from_ts, "from_ts")
+    normalized_to = normalize_history_timestamp(to_ts, "to_ts")
+    if normalized_from and normalized_to and normalized_from > normalized_to:
+        raise HTTPException(status_code=422, detail="from_ts no puede ser posterior a to_ts")
+    return await asyncio.to_thread(
+        history_store.query_presence,
+        query=query,
+        sensor_type=sensor_type,
+        room=room,
+        input_mode=input_mode,
+        from_ts=normalized_from,
+        to_ts=normalized_to,
+        max_points=max_points,
+    )
+
+
+@app.post(
+    "/api/history/purge",
+    tags=[TAG_HISTORY],
+    summary="Borrar todo el historial",
+)
+async def purge_history(payload: HistoryPurgeInput) -> dict[str, Any]:
+    if payload.confirmation != "BORRAR":
+        raise HTTPException(
+            status_code=400,
+            detail='La confirmacion debe ser exactamente "BORRAR"',
+        )
+    deleted = await asyncio.to_thread(history_store.purge)
+    return {"status": "ok", "deleted": deleted}
 
 
 @app.get("/api/ha_entities", tags=[TAG_SYSTEM], summary="Listar entidades Home Assistant")

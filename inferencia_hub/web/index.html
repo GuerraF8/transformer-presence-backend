@@ -105,6 +105,58 @@
             </details>
 
             <details class="settings-card" open>
+              <summary>Historial</summary>
+              <div class="settings-grid">
+                <div class="history-config-grid">
+                  <label>
+                    Persistencia
+                    <select id="historyEnabled">
+                      <option value="true">Activada</option>
+                      <option value="false">Desactivada</option>
+                    </select>
+                  </label>
+                  <label>
+                    Retencion en dias
+                    <input id="historyRetentionDays" type="number" min="1" max="3650" value="365" inputmode="numeric" />
+                  </label>
+                </div>
+                <fieldset class="history-mode-fieldset">
+                  <legend>Modos que se guardan</legend>
+                  <label><input id="historyModeListen" type="checkbox" value="listen" /> Escucha</label>
+                  <label><input id="historyModeReplay" type="checkbox" value="replay" /> Replay</label>
+                  <label><input id="historyModeSimulator" type="checkbox" value="simulator" /> Simulador</label>
+                </fieldset>
+                <div class="training-status-grid" aria-label="Estado del historial">
+                  <div class="training-status-card">
+                    <small>Eventos guardados</small>
+                    <b id="historyConfigTotal">0</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Tamano SQLite</small>
+                    <b id="historyConfigSize">0 B</b>
+                  </div>
+                  <div class="training-status-card wide">
+                    <small>Rango</small>
+                    <b id="historyConfigRange">Sin eventos</b>
+                  </div>
+                  <div class="training-status-card wide">
+                    <small>Base de datos</small>
+                    <b id="historyConfigPath">-</b>
+                  </div>
+                </div>
+                <button id="historyConfigSaveBtn" type="button">Guardar configuracion</button>
+                <div id="historyConfigStatus" class="mini" role="status" aria-live="polite"></div>
+                <div class="history-purge">
+                  <label>
+                    Borrado total
+                    <input id="historyPurgeConfirmation" type="text" autocomplete="off" placeholder="Escribe BORRAR" />
+                  </label>
+                  <button id="historyPurgeBtn" type="button" class="danger" disabled>Borrar historial</button>
+                </div>
+              </div>
+            </details>
+
+            <details class="settings-card" open>
               <summary>Sensores Home Assistant</summary>
               <div class="settings-grid">
                 <div class="setting-row">
@@ -486,18 +538,71 @@
                 <h2>Alertas y eventos</h2>
                 <p id="eventSummary">0 eventos</p>
               </div>
+              <button id="historyNewEventsBtn" type="button" class="secondary" hidden>
+                Hay eventos nuevos
+              </button>
             </header>
 
-            <div class="table-wrap">
+            <form id="historyFilterForm" class="history-filters" aria-label="Filtros del historial">
+              <label>
+                Buscar sensor
+                <input id="historyQuery" type="search" list="historySensorOptions" placeholder="Nombre o entity_id" />
+                <datalist id="historySensorOptions"></datalist>
+              </label>
+              <label>
+                Tipo
+                <select id="historySensorType"><option value="">Todos</option></select>
+              </label>
+              <label>
+                Habitación
+                <select id="historyRoom"><option value="">Todas</option></select>
+              </label>
+              <label>
+                Modo
+                <select id="historyInputMode">
+                  <option value="">Todos</option>
+                  <option value="listen" selected>Escucha</option>
+                  <option value="replay">Replay</option>
+                  <option value="simulator">Simulador</option>
+                </select>
+              </label>
+              <label>
+                Desde
+                <input id="historyFrom" type="datetime-local" />
+              </label>
+              <label>
+                Hasta
+                <input id="historyTo" type="datetime-local" />
+              </label>
+              <div class="history-filter-actions">
+                <button type="submit">Aplicar</button>
+                <button id="historyClearBtn" type="button" class="secondary">Limpiar</button>
+              </div>
+            </form>
+
+            <section class="history-chart-panel" aria-labelledby="historyChartHeading">
+              <div class="history-chart-head">
+                <h3 id="historyChartHeading">Presencia histórica</h3>
+                <span id="historyChartStatus" class="mini" role="status" aria-live="polite"></span>
+              </div>
+              <svg id="historyChart" viewBox="0 0 900 220" preserveAspectRatio="none" role="img" aria-labelledby="historyChartTitle historyChartDescription">
+                <title id="historyChartTitle">Gráfico histórico de presencia y personas estimadas</title>
+                <desc id="historyChartDescription">Sin datos históricos para los filtros seleccionados.</desc>
+              </svg>
+            </section>
+
+            <div class="table-wrap history-table-wrap">
               <table id="eventTable" class="data-table">
-                <caption class="sr-only">Eventos recientes de sensores</caption>
+                <caption class="sr-only">Eventos históricos filtrados de sensores</caption>
                 <thead>
                   <tr>
-                    <th scope="col"><button type="button" data-event-sort="index" aria-label="Ordenar eventos por índice">#</button></th>
-                    <th scope="col"><button type="button" data-event-sort="time">Hora</button></th>
-                    <th scope="col"><button type="button" data-event-sort="room">Habitación</button></th>
-                    <th scope="col">Sensor</th>
+                    <th scope="col">#</th>
+                    <th scope="col">Fecha</th>
+                    <th scope="col">Habitación</th>
+                    <th scope="col">Nombre sensor</th>
+                    <th scope="col">Tipo</th>
                     <th scope="col">Estado</th>
+                    <th scope="col">Presencia</th>
                     <th scope="col">Personas</th>
                     <th scope="col">Alerta</th>
                   </tr>
@@ -505,6 +610,12 @@
                 <tbody id="eventList"></tbody>
               </table>
             </div>
+
+            <nav class="history-pagination" aria-label="Paginación del historial">
+              <button id="historyPrevBtn" type="button" class="secondary">Anterior</button>
+              <span id="historyPageStatus" role="status" aria-live="polite">Página 1 de 1</span>
+              <button id="historyNextBtn" type="button" class="secondary">Siguiente</button>
+            </nav>
 
             <div class="table-wrap alerts-table-wrap">
               <table class="data-table">

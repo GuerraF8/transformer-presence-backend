@@ -4,6 +4,7 @@ import asyncio
 import os
 from collections import Counter, deque
 from datetime import datetime, timedelta, timezone
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import numpy as np
@@ -74,6 +75,10 @@ class InferenceHubState:
         self.current_active_rooms: list[str] = []
         self.latest_touched_edge: tuple[str, str] | None = None
         self.websockets: set[WebSocket] = set()
+        self.event_sink: Callable[
+            [SensorEventInput, dict[str, Any], dict[str, Any]],
+            Awaitable[None],
+        ] | None = None
         self.rejected_transitions = 0
 
         self.reference_layout: dict[str, list[str]] = {}
@@ -1222,6 +1227,7 @@ class InferenceHubState:
                 "inference_debug": inference_debug,
                 "presence_filter": presence_filter_debug,
                 "source": payload.source,
+                "input_mode": self.input_mode,
                 "ai_mode": (
                     "hf_transformer_markov" if self.ai_model.training_info.get("transformer", {}).get("enabled") else "markov_ai"
                 )
@@ -1270,6 +1276,12 @@ class InferenceHubState:
                 "event": event,
             }
 
+        if self.event_sink is not None:
+            try:
+                await self.event_sink(payload, event, response)
+            except Exception:
+                # La persistencia es complementaria y no debe interrumpir inferencia.
+                pass
         await self.broadcast_event(response)
         return response
 

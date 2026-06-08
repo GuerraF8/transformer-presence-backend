@@ -48,6 +48,28 @@
       realSensorDirty: false,
       realSensorSearch: "",
       trainingPollTimer: null,
+      history: {
+        config: {},
+        items: [],
+        total: 0,
+        page: 1,
+        pages: 1,
+        pageSize: 50,
+        options: { sensors: [], sensor_types: [], rooms: [], input_modes: [] },
+        points: [],
+        sourceEvents: 0,
+        truncated: false,
+        newEvents: false,
+        refreshTimer: null,
+        filters: {
+          query: "",
+          sensorType: "",
+          room: "",
+          inputMode: "listen",
+          fromTs: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          toTs: "",
+        },
+      },
     };
 
     const el = {
@@ -160,6 +182,35 @@
       configDialog: document.getElementById("configDialog"),
       configOpenBtn: document.getElementById("configOpenBtn"),
       configCloseBtn: document.getElementById("configCloseBtn"),
+      historyEnabled: document.getElementById("historyEnabled"),
+      historyRetentionDays: document.getElementById("historyRetentionDays"),
+      historyModeListen: document.getElementById("historyModeListen"),
+      historyModeReplay: document.getElementById("historyModeReplay"),
+      historyModeSimulator: document.getElementById("historyModeSimulator"),
+      historyConfigTotal: document.getElementById("historyConfigTotal"),
+      historyConfigSize: document.getElementById("historyConfigSize"),
+      historyConfigRange: document.getElementById("historyConfigRange"),
+      historyConfigPath: document.getElementById("historyConfigPath"),
+      historyConfigSaveBtn: document.getElementById("historyConfigSaveBtn"),
+      historyConfigStatus: document.getElementById("historyConfigStatus"),
+      historyPurgeConfirmation: document.getElementById("historyPurgeConfirmation"),
+      historyPurgeBtn: document.getElementById("historyPurgeBtn"),
+      historyFilterForm: document.getElementById("historyFilterForm"),
+      historyQuery: document.getElementById("historyQuery"),
+      historySensorOptions: document.getElementById("historySensorOptions"),
+      historySensorType: document.getElementById("historySensorType"),
+      historyRoom: document.getElementById("historyRoom"),
+      historyInputMode: document.getElementById("historyInputMode"),
+      historyFrom: document.getElementById("historyFrom"),
+      historyTo: document.getElementById("historyTo"),
+      historyClearBtn: document.getElementById("historyClearBtn"),
+      historyChart: document.getElementById("historyChart"),
+      historyChartDescription: document.getElementById("historyChartDescription"),
+      historyChartStatus: document.getElementById("historyChartStatus"),
+      historyPrevBtn: document.getElementById("historyPrevBtn"),
+      historyNextBtn: document.getElementById("historyNextBtn"),
+      historyPageStatus: document.getElementById("historyPageStatus"),
+      historyNewEventsBtn: document.getElementById("historyNewEventsBtn"),
     };
 
     let configDialogReturnFocus = null;
@@ -254,6 +305,28 @@
         second: "2-digit",
         hour12: false,
       });
+    }
+
+    function formatBytes(value) {
+      const bytes = Number(value || 0);
+      if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+      const units = ["B", "KB", "MB", "GB"];
+      const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+      return (bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1) + " " + units[index];
+    }
+
+    function isoToLocalInput(iso) {
+      if (!iso) return "";
+      const date = new Date(iso);
+      if (!Number.isFinite(date.getTime())) return "";
+      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 16);
+    }
+
+    function localInputToIso(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      return Number.isFinite(date.getTime()) ? date.toISOString() : "";
     }
 
     function adjacencyToText(adjacency) {
@@ -1173,38 +1246,234 @@
       });
     }
 
-    function renderEvents() {
-      el.eventList.innerHTML = "";
-      let events = [...state.events].slice(-70);
-      el.eventSummary.textContent = String(state.events.length) + " eventos";
+    function renderHistoryConfig() {
+      const config = state.history.config || {};
+      const modes = new Set(Array.isArray(config.persisted_modes) ? config.persisted_modes : []);
+      el.historyEnabled.value = String(config.enabled !== false);
+      el.historyRetentionDays.value = String(config.retention_days || 365);
+      el.historyModeListen.checked = modes.has("listen");
+      el.historyModeReplay.checked = modes.has("replay");
+      el.historyModeSimulator.checked = modes.has("simulator");
+      el.historyConfigTotal.textContent = formatInteger(config.events_total || 0);
+      el.historyConfigSize.textContent = formatBytes(config.database_size_bytes);
+      el.historyConfigRange.textContent = config.first_timestamp
+        ? formatTime(config.first_timestamp) + " - " + formatTime(config.last_timestamp)
+        : "Sin eventos";
+      el.historyConfigPath.textContent = String(config.database_path || "-");
+      if (config.last_error) {
+        setMiniStatus(el.historyConfigStatus, "SQLite: " + config.last_error, true);
+      } else {
+        setMiniStatus(
+          el.historyConfigStatus,
+          config.enabled === false ? "persistencia desactivada" : "historial operativo",
+          false
+        );
+      }
+    }
 
-      events.sort((a, b) => {
-        if (state.eventSort === "index") return Number(b.index || 0) - Number(a.index || 0);
-        if (state.eventSort === "room") return roomLabel(a.room).localeCompare(roomLabel(b.room));
-        return String(b.timestamp || "").localeCompare(String(a.timestamp || ""));
+    function populateHistorySelect(select, values, emptyLabel, labelFormatter) {
+      const current = select.value;
+      select.innerHTML = "";
+      const empty = document.createElement("option");
+      empty.value = "";
+      empty.textContent = emptyLabel;
+      select.appendChild(empty);
+      (values || []).forEach((value) => {
+        const option = document.createElement("option");
+        option.value = String(value);
+        option.textContent = labelFormatter ? labelFormatter(value) : roomLabel(value);
+        select.appendChild(option);
       });
+      select.value = [...select.options].some((option) => option.value === current) ? current : "";
+    }
 
-      events.forEach((evt) => {
+    function renderHistoryOptions() {
+      const options = state.history.options || {};
+      populateHistorySelect(el.historySensorType, options.sensor_types, "Todos");
+      populateHistorySelect(el.historyRoom, options.rooms, "Todas");
+      const selectedMode = el.historyInputMode.value;
+      const configuredModes = ["listen", "replay", "simulator"];
+      const availableModes = [...new Set([...(options.input_modes || []), ...configuredModes])];
+      populateHistorySelect(el.historyInputMode, availableModes, "Todos", (mode) => {
+        if (mode === "listen") return "Escucha";
+        if (mode === "replay") return "Replay";
+        if (mode === "simulator") return "Simulador";
+        return String(mode);
+      });
+      el.historyInputMode.value = availableModes.includes(selectedMode) ? selectedMode : "";
+
+      el.historySensorOptions.innerHTML = "";
+      (options.sensors || []).forEach((sensor) => {
+        const option = document.createElement("option");
+        option.value = String(sensor.entity_id || "");
+        option.label = String(sensor.sensor_name || sensor.entity_id || "");
+        el.historySensorOptions.appendChild(option);
+      });
+    }
+
+    function renderHistoryEvents() {
+      el.eventList.innerHTML = "";
+      el.eventSummary.textContent =
+        formatInteger(state.history.total) + " eventos filtrados";
+
+      if (!state.history.items.length) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 9;
+        cell.textContent = "No hay eventos para los filtros seleccionados";
+        row.appendChild(cell);
+        el.eventList.appendChild(row);
+      }
+
+      state.history.items.forEach((evt) => {
         const hasLayoutAlert = !!evt.layout_alert;
-        const tr = document.createElement("tr");
-        appendCell(tr, "#" + String(evt.index || "-"));
-        appendCell(tr, formatTime(evt.timestamp));
-        appendCell(tr, roomLabel(evt.room));
-        appendCell(tr, String(evt.sensor_type || "other"));
+        const row = document.createElement("tr");
+        appendCell(row, "#" + String(evt.id || "-"));
+        appendCell(row, formatTime(evt.event_timestamp));
+        appendCell(row, roomLabel(evt.room));
+        const sensorCell = appendCell(row, String(evt.sensor_name || evt.entity_id || "-"));
+        sensorCell.title = String(evt.entity_id || "");
+        appendCell(row, String(evt.sensor_type || "other"));
         appendBadgeCell(
-          tr,
+          row,
           String(evt.state || "-"),
           String(evt.state || "").toLowerCase() === "on" ? "on" : "off"
         );
-        appendCell(tr, String(evt.estimated_people || 0));
+        const presenceText = evt.inferred_presence
+          ? "Presente: " + roomLabel(evt.inferred_room)
+          : "Ausente";
+        appendBadgeCell(row, presenceText, evt.inferred_presence ? "on" : "off");
+        appendCell(row, String(evt.estimated_people || 0));
         appendBadgeCell(
-          tr,
+          row,
           hasLayoutAlert ? String(evt.layout_alert.cause || "no_adyacente") : "ok",
           hasLayoutAlert ? "alert" : "ok"
         );
-
-        el.eventList.appendChild(tr);
+        el.eventList.appendChild(row);
       });
+
+      el.historyPageStatus.textContent =
+        "Página " + String(state.history.page) + " de " + String(state.history.pages);
+      el.historyPrevBtn.disabled = state.history.page <= 1;
+      el.historyNextBtn.disabled = state.history.page >= state.history.pages;
+      el.historyNewEventsBtn.hidden = !state.history.newEvents;
+    }
+
+    function svgElement(name, attributes) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", name);
+      Object.entries(attributes || {}).forEach(([key, value]) => {
+        node.setAttribute(key, String(value));
+      });
+      return node;
+    }
+
+    function renderHistoryChart() {
+      const points = state.history.points || [];
+      el.historyChart.innerHTML = "";
+      const title = svgElement("title", { id: "historyChartTitle" });
+      title.textContent = "Gráfico histórico de presencia y personas estimadas";
+      el.historyChart.appendChild(title);
+      const description = svgElement("desc", { id: "historyChartDescription" });
+      el.historyChart.appendChild(description);
+
+      if (!points.length) {
+        description.textContent = "Sin datos históricos para los filtros seleccionados.";
+        const text = svgElement("text", { x: 450, y: 112, class: "history-chart-empty" });
+        text.textContent = "Sin datos históricos";
+        el.historyChart.appendChild(text);
+        setMiniStatus(el.historyChartStatus, "sin puntos", false);
+        return;
+      }
+
+      const width = 900;
+      const height = 220;
+      const left = 48;
+      const right = 18;
+      const top = 18;
+      const bottom = 34;
+      const start = new Date(points[0].timestamp).getTime();
+      const end = new Date(points[points.length - 1].timestamp).getTime();
+      const duration = Math.max(1, end - start);
+      const maxPeople = Math.max(1, ...points.map((point) => Number(point.people || 0)));
+      const x = (timestamp) =>
+        left + ((new Date(timestamp).getTime() - start) / duration) * (width - left - right);
+      const presenceY = (present) => (present ? top + 34 : height - bottom - 34);
+      const peopleY = (people) =>
+        height - bottom - (Number(people || 0) / maxPeople) * (height - top - bottom);
+
+      el.historyChart.appendChild(
+        svgElement("line", {
+          x1: left,
+          y1: height - bottom,
+          x2: width - right,
+          y2: height - bottom,
+          class: "history-chart-axis",
+        })
+      );
+      el.historyChart.appendChild(
+        svgElement("line", {
+          x1: left,
+          y1: top,
+          x2: left,
+          y2: height - bottom,
+          class: "history-chart-axis",
+        })
+      );
+
+      let presencePath = "";
+      points.forEach((point, index) => {
+        const pointX = x(point.timestamp);
+        const pointY = presenceY(point.presence);
+        if (index === 0) {
+          presencePath = "M " + pointX + " " + pointY;
+        } else {
+          presencePath += " H " + pointX + " V " + pointY;
+        }
+      });
+      const peoplePath = points
+        .map((point, index) =>
+          (index === 0 ? "M " : " L ") + x(point.timestamp) + " " + peopleY(point.people)
+        )
+        .join("");
+      el.historyChart.appendChild(
+        svgElement("path", { d: presencePath, class: "history-presence-line" })
+      );
+      el.historyChart.appendChild(
+        svgElement("path", { d: peoplePath, class: "history-people-line" })
+      );
+
+      [
+        { x: 10, y: presenceY(true) + 4, text: "ON" },
+        { x: 10, y: presenceY(false) + 4, text: "OFF" },
+        { x: left, y: height - 10, text: formatTime(points[0].timestamp) },
+        { x: width - right, y: height - 10, text: formatTime(points[points.length - 1].timestamp), anchor: "end" },
+      ].forEach((label) => {
+        const node = svgElement("text", {
+          x: label.x,
+          y: label.y,
+          class: "history-chart-label",
+          "text-anchor": label.anchor || "start",
+        });
+        node.textContent = label.text;
+        el.historyChart.appendChild(node);
+      });
+
+      description.textContent =
+        String(points.length) + " cambios de presencia. Máximo de personas estimadas: " +
+        String(maxPeople) + ".";
+      setMiniStatus(
+        el.historyChartStatus,
+        state.history.truncated
+          ? "serie truncada a " + String(points.length) + " cambios"
+          : String(points.length) + " cambios",
+        state.history.truncated
+      );
+    }
+
+    function renderHistory() {
+      renderHistoryOptions();
+      renderHistoryEvents();
+      renderHistoryChart();
     }
 
     function renderLayoutEditor() {
@@ -1237,7 +1506,6 @@
       renderReplay();
       renderLayoutEditor();
       renderAlerts();
-      renderEvents();
       renderMaps();
     }
 
@@ -1391,6 +1659,7 @@
       }
 
       renderAll();
+      scheduleHistoryRefresh();
     }
 
     async function fetchJson(url, options) {
@@ -1410,6 +1679,154 @@
       }
 
       return data;
+    }
+
+    function historySearchParams() {
+      const filters = state.history.filters;
+      const params = new URLSearchParams({
+        query: filters.query,
+        sensor_type: filters.sensorType,
+        room: filters.room,
+        input_mode: filters.inputMode,
+        from_ts: filters.fromTs,
+        to_ts: filters.toTs,
+      });
+      return params;
+    }
+
+    async function fetchHistoryConfig() {
+      state.history.config = await fetchJson("/api/history/config", { cache: "no-store" });
+      renderHistoryConfig();
+      return state.history.config;
+    }
+
+    async function saveHistoryConfig() {
+      const persistedModes = [
+        el.historyModeListen,
+        el.historyModeReplay,
+        el.historyModeSimulator,
+      ]
+        .filter((input) => input.checked)
+        .map((input) => input.value);
+      if (!persistedModes.length) {
+        setMiniStatus(el.historyConfigStatus, "selecciona al menos un modo", true);
+        return;
+      }
+      try {
+        el.historyConfigSaveBtn.disabled = true;
+        state.history.config = await fetchJson("/api/history/config", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            enabled: el.historyEnabled.value === "true",
+            retention_days: Number(el.historyRetentionDays.value || 365),
+            persisted_modes: persistedModes,
+          }),
+        });
+        renderHistoryConfig();
+        setMiniStatus(el.historyConfigStatus, "configuración guardada", false);
+        await fetchHistory();
+      } catch (err) {
+        setMiniStatus(el.historyConfigStatus, String(err.message || err), true);
+      } finally {
+        el.historyConfigSaveBtn.disabled = false;
+      }
+    }
+
+    async function purgeHistory() {
+      if (el.historyPurgeConfirmation.value !== "BORRAR") return;
+      try {
+        el.historyPurgeBtn.disabled = true;
+        const result = await fetchJson("/api/history/purge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmation: "BORRAR" }),
+        });
+        el.historyPurgeConfirmation.value = "";
+        setMiniStatus(
+          el.historyConfigStatus,
+          "historial borrado: " + formatInteger(result.deleted || 0) + " eventos",
+          false
+        );
+        await Promise.all([fetchHistoryConfig(), fetchHistory()]);
+      } catch (err) {
+        setMiniStatus(el.historyConfigStatus, String(err.message || err), true);
+      } finally {
+        el.historyPurgeBtn.disabled = el.historyPurgeConfirmation.value !== "BORRAR";
+      }
+    }
+
+    async function fetchHistory() {
+      const params = historySearchParams();
+      params.set("page", String(state.history.page));
+      params.set("page_size", String(state.history.pageSize));
+      const presenceParams = historySearchParams();
+      presenceParams.set("max_points", "1000");
+      const [eventsResult, presenceResult] = await Promise.all([
+        fetchJson("/api/history/events?" + params.toString(), { cache: "no-store" }),
+        fetchJson("/api/history/presence?" + presenceParams.toString(), { cache: "no-store" }),
+      ]);
+      state.history.items = Array.isArray(eventsResult.items) ? eventsResult.items : [];
+      state.history.total = Number(eventsResult.total || 0);
+      state.history.page = Number(eventsResult.page || 1);
+      state.history.pages = Number(eventsResult.pages || 1);
+      state.history.options = eventsResult.options || state.history.options;
+      state.history.points = Array.isArray(presenceResult.points) ? presenceResult.points : [];
+      state.history.sourceEvents = Number(presenceResult.source_events || 0);
+      state.history.truncated = !!presenceResult.truncated;
+      state.history.newEvents = false;
+      renderHistory();
+    }
+
+    function applyHistoryFilters() {
+      state.history.filters = {
+        query: el.historyQuery.value.trim(),
+        sensorType: el.historySensorType.value,
+        room: el.historyRoom.value,
+        inputMode: el.historyInputMode.value,
+        fromTs: localInputToIso(el.historyFrom.value),
+        toTs: localInputToIso(el.historyTo.value),
+      };
+      state.history.page = 1;
+      fetchHistory().catch((err) => {
+        setMiniStatus(el.historyChartStatus, String(err.message || err), true);
+      });
+    }
+
+    function clearHistoryFilters() {
+      state.history.filters = {
+        query: "",
+        sensorType: "",
+        room: "",
+        inputMode: "listen",
+        fromTs: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        toTs: "",
+      };
+      el.historyQuery.value = "";
+      el.historySensorType.value = "";
+      el.historyRoom.value = "";
+      el.historyInputMode.value = "listen";
+      el.historyFrom.value = isoToLocalInput(state.history.filters.fromTs);
+      el.historyTo.value = "";
+      state.history.page = 1;
+      fetchHistory().catch((err) => {
+        setMiniStatus(el.historyChartStatus, String(err.message || err), true);
+      });
+    }
+
+    function scheduleHistoryRefresh() {
+      if (state.history.page !== 1) {
+        state.history.newEvents = true;
+        el.historyNewEventsBtn.hidden = false;
+        return;
+      }
+      if (state.history.refreshTimer) {
+        window.clearTimeout(state.history.refreshTimer);
+      }
+      state.history.refreshTimer = window.setTimeout(() => {
+        state.history.refreshTimer = null;
+        Promise.all([fetchHistory(), fetchHistoryConfig()]).catch(() => {});
+      }, 500);
     }
 
     async function fetchSnapshot() {
@@ -1985,11 +2402,29 @@
       el.scenarioTemplate.addEventListener("change", applyScenarioTemplate);
       el.mapTabFixed.addEventListener("click", () => setMapTab("fixed"));
       el.mapTabLive.addEventListener("click", () => setMapTab("live"));
-      document.querySelectorAll("[data-event-sort]").forEach((button) => {
-        button.addEventListener("click", () => {
-          state.eventSort = button.getAttribute("data-event-sort") || "time";
-          renderEvents();
-        });
+      el.historyConfigSaveBtn.addEventListener("click", saveHistoryConfig);
+      el.historyPurgeConfirmation.addEventListener("input", () => {
+        el.historyPurgeBtn.disabled = el.historyPurgeConfirmation.value !== "BORRAR";
+      });
+      el.historyPurgeBtn.addEventListener("click", purgeHistory);
+      el.historyFilterForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        applyHistoryFilters();
+      });
+      el.historyClearBtn.addEventListener("click", clearHistoryFilters);
+      el.historyPrevBtn.addEventListener("click", () => {
+        if (state.history.page <= 1) return;
+        state.history.page -= 1;
+        fetchHistory().catch((err) => setMiniStatus(el.historyChartStatus, String(err.message || err), true));
+      });
+      el.historyNextBtn.addEventListener("click", () => {
+        if (state.history.page >= state.history.pages) return;
+        state.history.page += 1;
+        fetchHistory().catch((err) => setMiniStatus(el.historyChartStatus, String(err.message || err), true));
+      });
+      el.historyNewEventsBtn.addEventListener("click", () => {
+        state.history.page = 1;
+        fetchHistory().catch((err) => setMiniStatus(el.historyChartStatus, String(err.message || err), true));
       });
     }
 
@@ -1998,6 +2433,7 @@
       registerActions();
       setMapTab("fixed");
       el.apiBaseUrl.textContent = window.location.origin;
+      el.historyFrom.value = isoToLocalInput(state.history.filters.fromTs);
 
       try {
         await fetchSnapshot();
@@ -2052,6 +2488,12 @@
         await fetchScenarioTemplates();
       } catch (err) {
         setMiniStatus(el.replayStatus, "plantillas: " + String(err.message || err), true);
+      }
+
+      try {
+        await Promise.all([fetchHistoryConfig(), fetchHistory()]);
+      } catch (err) {
+        setMiniStatus(el.historyChartStatus, "historial: " + String(err.message || err), true);
       }
 
       connectWebSocket();

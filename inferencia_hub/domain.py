@@ -4,7 +4,7 @@ import math
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from pydantic import BaseModel, Field
@@ -229,6 +229,18 @@ class PresenceFilterConfigInput(BaseModel):
     window_seconds: int = Field(default=20, ge=1, le=600)
     min_motion_events: int = Field(default=2, ge=1, le=20)
     min_distinct_rooms: int = Field(default=1, ge=1, le=20)
+
+
+class HistoryConfigInput(BaseModel):
+    enabled: bool = True
+    retention_days: int = Field(default=365, ge=1, le=3650)
+    persisted_modes: list[Literal["listen", "replay", "simulator"]] = Field(
+        default_factory=lambda: ["listen", "replay", "simulator"]
+    )
+
+
+class HistoryPurgeInput(BaseModel):
+    confirmation: str = ""
 
 
 class CsvReplayRequest(BaseModel):

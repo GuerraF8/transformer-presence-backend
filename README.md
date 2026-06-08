@@ -53,7 +53,7 @@ No uses `127.0.0.1` en la integracion si Home Assistant o el navegador estan en 
 
 El compose monta:
 
-- `inferencia_hub_data:/app/data` para estado runtime, modelos, metricas y configuracion persistida.
+- `inferencia_hub_data:/app/data` para estado runtime, modelos, metricas, configuracion e historial SQLite.
 - `./data:/data:ro` para CSV historicos que quieras usar en replay o entrenamiento.
 
 Para entrenar o reproducir historicos, deja tus CSV en `data/` y usa rutas del contenedor como:
@@ -71,6 +71,27 @@ Las variables disponibles estan documentadas en `.env.example`. Las mas usadas s
 - `TRANSFORMER_PRESENCE_PORT`: puerto publicado en el host.
 - `PET_FILTER_ENABLED`: activa/desactiva el filtro de mascotas.
 - `CORS_ALLOW_ORIGINS`: origenes permitidos para llamadas desde navegador.
+- `HISTORY_DB_PATH`: ruta fisica de SQLite; requiere reinicio para cambiarse.
+- `HISTORY_ENABLED`: valor inicial para activar persistencia.
+- `HISTORY_RETENTION_DAYS`: retencion inicial, 365 dias por defecto.
+- `HISTORY_PERSIST_MODES`: modos iniciales separados por coma.
+
+## Historial de presencia
+
+El backend 0.3.0 persiste eventos brutos e inferencias de `listen`, `replay` y
+`simulator` en SQLite. La configuracion de retencion y modos se administra desde
+el modal del panel y queda guardada en la misma base de datos.
+
+Endpoints principales:
+
+- `GET/PUT /api/history/config`
+- `GET /api/history/events`
+- `GET /api/history/presence`
+- `POST /api/history/purge`
+
+`/api/reset` solo reinicia el estado operativo y no elimina el historial. El
+borrado total exige enviar `{"confirmation":"BORRAR"}`. El historial de Recorder
+en Home Assistant sigue funcionando de forma independiente y complementaria.
 
 ## Home Assistant
 
