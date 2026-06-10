@@ -2,6 +2,9 @@
 
 Backend FastAPI para Transformer Presence. Recibe eventos desde Home Assistant, mantiene el estado de presencia, entrena modelos desde historicos CSV y sirve el panel web que la integracion HACS abre como iframe.
 
+La version `0.3.1` separa contexto, routers, transporte WebSocket, contratos y
+componentes del modelo. Consulta [ARCHITECTURE.md](ARCHITECTURE.md).
+
 `GET /api/sim_data` publica en `presence` los campos estables usados por las entidades de Home Assistant: `inferred_presence`, `people_estimate`, `confidence` y `updated_at`, ademas de `current_room` y `active_rooms`.
 
 ## Despliegue rapido
@@ -78,7 +81,7 @@ Las variables disponibles estan documentadas en `.env.example`. Las mas usadas s
 
 ## Historial de presencia
 
-El backend 0.3.0 persiste eventos brutos e inferencias de `listen`, `replay` y
+El backend 0.3.1 persiste eventos brutos e inferencias de `listen`, `replay` y
 `simulator` en SQLite. La configuracion de retencion y modos se administra desde
 el modal del panel y queda guardada en la misma base de datos.
 

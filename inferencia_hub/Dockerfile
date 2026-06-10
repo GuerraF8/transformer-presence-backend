@@ -18,8 +18,10 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install -r /app/requirements-base.txt && \
     if [ "$INSTALL_ML" = "1" ]; then python -m pip install -r /app/requirements-ml.txt; fi
 
-COPY inferencia_hub/*.py /app/
-COPY inferencia_hub/web /app/web
+COPY inferencia_hub /app/inferencia_hub
+COPY inferencia_hub/docker_server.py /app/server.py
+
+ENV WEB_DIR=/app/inferencia_hub/web
 
 EXPOSE 8080
 

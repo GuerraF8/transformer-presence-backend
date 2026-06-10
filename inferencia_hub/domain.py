@@ -440,7 +440,7 @@ def build_layout_for_request(
     if selected:
         return selected
 
-    # Fallback final: layout lineal si no hay aristas para la plantilla seleccionada.
+    # Utiliza un mapa lineal cuando la plantilla seleccionada no contiene aristas.
     fallback_edges: list[tuple[str, str]] = []
     for idx in range(1, len(normalized_rooms)):
         fallback_edges.append((normalized_rooms[idx - 1], normalized_rooms[idx]))

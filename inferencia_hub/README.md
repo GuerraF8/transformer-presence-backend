@@ -53,7 +53,7 @@ Campos `sensor_type`, `room` y `timestamp` son opcionales; el servicio los infie
 
 ## Historial persistente
 
-La version 0.3.0 guarda en `/app/data/presence_history.sqlite3` el evento original,
+La version 0.3.1 guarda en `/app/data/presence_history.sqlite3` el evento original,
 la inferencia resultante y el modo de entrada. SQLite usa WAL, migraciones con
 `PRAGMA user_version`, indices de consulta y limpieza por retencion.
 

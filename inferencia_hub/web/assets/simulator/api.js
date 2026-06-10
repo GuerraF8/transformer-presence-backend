@@ -1,0 +1,17 @@
+export async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const raw = await response.text();
+  let data = null;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch (_error) {
+    data = null;
+  }
+  if (!response.ok) {
+    const detail = data?.detail
+      ? String(data.detail)
+      : raw || `${response.status} ${response.statusText}`;
+    throw new Error(detail);
+  }
+  return data;
+}

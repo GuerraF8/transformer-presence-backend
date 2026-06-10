@@ -21,7 +21,7 @@ services:
       HISTORY_RETENTION_DAYS: "${HISTORY_RETENTION_DAYS:-365}"
       HISTORY_PERSIST_MODES: "${HISTORY_PERSIST_MODES:-listen,replay,simulator}"
       INFERENCIA_DATA_DIR: /app/data
-      WEB_DIR: /app/web
+      WEB_DIR: /app/inferencia_hub/web
     volumes:
       - ./data:/data:ro
       - inferencia_hub_data:/app/data

@@ -1,0 +1,530 @@
+import { fetchJson } from "./api.js";
+import {
+  formatBytes,
+  formatInteger,
+  formatTime,
+  isoToLocalInput,
+  localInputToIso,
+  roomLabel,
+} from "./format.js";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+export function buildHistorySearchParams(filters) {
+  return new URLSearchParams({
+    query: filters.query,
+    sensor_type: filters.sensorType,
+    room: filters.room,
+    input_mode: filters.inputMode,
+    from_ts: filters.fromTs,
+    to_ts: filters.toTs,
+  });
+}
+
+export function createHistoryController({
+  state,
+  el,
+  setMiniStatus,
+  appendCell,
+  appendBadgeCell,
+  documentRef = document,
+  windowRef = window,
+}) {
+  function renderConfig() {
+    const config = state.history.config || {};
+    const modes = new Set(
+      Array.isArray(config.persisted_modes) ? config.persisted_modes : [],
+    );
+    el.historyEnabled.value = String(config.enabled !== false);
+    el.historyRetentionDays.value = String(config.retention_days || 365);
+    el.historyModeListen.checked = modes.has("listen");
+    el.historyModeReplay.checked = modes.has("replay");
+    el.historyModeSimulator.checked = modes.has("simulator");
+    el.historyConfigTotal.textContent = formatInteger(config.events_total || 0);
+    el.historyConfigSize.textContent = formatBytes(config.database_size_bytes);
+    el.historyConfigRange.textContent = config.first_timestamp
+      ? formatTime(config.first_timestamp) +
+        " - " +
+        formatTime(config.last_timestamp)
+      : "Sin eventos";
+    el.historyConfigPath.textContent = String(config.database_path || "-");
+    setMiniStatus(
+      el.historyConfigStatus,
+      config.last_error
+        ? "SQLite: " + config.last_error
+        : config.enabled === false
+          ? "persistencia desactivada"
+          : "historial operativo",
+      !!config.last_error,
+    );
+  }
+
+  function populateSelect(select, values, emptyLabel, labelFormatter) {
+    const current = select.value;
+    select.innerHTML = "";
+    const empty = documentRef.createElement("option");
+    empty.value = "";
+    empty.textContent = emptyLabel;
+    select.appendChild(empty);
+    (values || []).forEach((value) => {
+      const option = documentRef.createElement("option");
+      option.value = String(value);
+      option.textContent = labelFormatter
+        ? labelFormatter(value)
+        : roomLabel(value);
+      select.appendChild(option);
+    });
+    select.value = [...select.options].some(
+      (option) => option.value === current,
+    )
+      ? current
+      : "";
+  }
+
+  function renderOptions() {
+    const options = state.history.options || {};
+    populateSelect(el.historySensorType, options.sensor_types, "Todos");
+    populateSelect(el.historyRoom, options.rooms, "Todas");
+    const selectedMode = el.historyInputMode.value;
+    const modes = [
+      ...new Set([
+        ...(options.input_modes || []),
+        "listen",
+        "replay",
+        "simulator",
+      ]),
+    ];
+    populateSelect(el.historyInputMode, modes, "Todos", (mode) => {
+      if (mode === "listen") return "Escucha";
+      if (mode === "replay") return "Replay";
+      if (mode === "simulator") return "Simulador";
+      return String(mode);
+    });
+    el.historyInputMode.value = modes.includes(selectedMode)
+      ? selectedMode
+      : "";
+    el.historySensorOptions.innerHTML = "";
+    (options.sensors || []).forEach((sensor) => {
+      const option = documentRef.createElement("option");
+      option.value = String(sensor.entity_id || "");
+      option.label = String(sensor.sensor_name || sensor.entity_id || "");
+      el.historySensorOptions.appendChild(option);
+    });
+  }
+
+  function renderEvents() {
+    el.eventList.innerHTML = "";
+    el.eventSummary.textContent =
+      formatInteger(state.history.total) + " eventos filtrados";
+    if (!state.history.items.length) {
+      const row = documentRef.createElement("tr");
+      const cell = documentRef.createElement("td");
+      cell.colSpan = 9;
+      cell.textContent = "No hay eventos para los filtros seleccionados";
+      row.appendChild(cell);
+      el.eventList.appendChild(row);
+    }
+    state.history.items.forEach((event) => {
+      const row = documentRef.createElement("tr");
+      appendCell(row, "#" + String(event.id || "-"));
+      appendCell(row, formatTime(event.event_timestamp));
+      appendCell(row, roomLabel(event.room));
+      const sensorCell = appendCell(
+        row,
+        String(event.sensor_name || event.entity_id || "-"),
+      );
+      sensorCell.title = String(event.entity_id || "");
+      appendCell(row, String(event.sensor_type || "other"));
+      appendBadgeCell(
+        row,
+        String(event.state || "-"),
+        String(event.state || "").toLowerCase() === "on" ? "on" : "off",
+      );
+      appendBadgeCell(
+        row,
+        event.inferred_presence
+          ? "Presente: " + roomLabel(event.inferred_room)
+          : "Ausente",
+        event.inferred_presence ? "on" : "off",
+      );
+      appendCell(row, String(event.estimated_people || 0));
+      appendBadgeCell(
+        row,
+        event.layout_alert
+          ? String(event.layout_alert.cause || "no_adyacente")
+          : "ok",
+        event.layout_alert ? "alert" : "ok",
+      );
+      el.eventList.appendChild(row);
+    });
+    el.historyPageStatus.textContent =
+      "Página " + state.history.page + " de " + state.history.pages;
+    el.historyPrevBtn.disabled = state.history.page <= 1;
+    el.historyNextBtn.disabled = state.history.page >= state.history.pages;
+    el.historyNewEventsBtn.hidden = !state.history.newEvents;
+  }
+
+  function svgElement(name, attributes) {
+    const node = documentRef.createElementNS(SVG_NS, name);
+    Object.entries(attributes || {}).forEach(([key, value]) => {
+      node.setAttribute(key, String(value));
+    });
+    return node;
+  }
+
+  function renderChart() {
+    const points = state.history.points || [];
+    el.historyChart.innerHTML = "";
+    const title = svgElement("title", { id: "historyChartTitle" });
+    title.textContent = "Gráfico histórico de presencia y personas estimadas";
+    el.historyChart.appendChild(title);
+    const description = svgElement("desc", {
+      id: "historyChartDescription",
+    });
+    el.historyChart.appendChild(description);
+    if (!points.length) {
+      description.textContent =
+        "Sin datos históricos para los filtros seleccionados.";
+      const text = svgElement("text", {
+        x: 450,
+        y: 112,
+        class: "history-chart-empty",
+      });
+      text.textContent = "Sin datos históricos";
+      el.historyChart.appendChild(text);
+      setMiniStatus(el.historyChartStatus, "sin puntos", false);
+      return;
+    }
+
+    const width = 900;
+    const height = 220;
+    const left = 48;
+    const right = 18;
+    const top = 18;
+    const bottom = 34;
+    const start = new Date(points[0].timestamp).getTime();
+    const end = new Date(points.at(-1).timestamp).getTime();
+    const duration = Math.max(1, end - start);
+    const maxPeople = Math.max(
+      1,
+      ...points.map((point) => Number(point.people || 0)),
+    );
+    const x = (timestamp) =>
+      left +
+      ((new Date(timestamp).getTime() - start) / duration) *
+        (width - left - right);
+    const presenceY = (present) =>
+      present ? top + 34 : height - bottom - 34;
+    const peopleY = (people) =>
+      height -
+      bottom -
+      (Number(people || 0) / maxPeople) * (height - top - bottom);
+
+    for (const attributes of [
+      {
+        x1: left,
+        y1: height - bottom,
+        x2: width - right,
+        y2: height - bottom,
+        class: "history-chart-axis",
+      },
+      {
+        x1: left,
+        y1: top,
+        x2: left,
+        y2: height - bottom,
+        class: "history-chart-axis",
+      },
+    ]) {
+      el.historyChart.appendChild(svgElement("line", attributes));
+    }
+    let presencePath = "";
+    points.forEach((point, index) => {
+      const pointX = x(point.timestamp);
+      const pointY = presenceY(point.presence);
+      presencePath +=
+        index === 0
+          ? `M ${pointX} ${pointY}`
+          : ` H ${pointX} V ${pointY}`;
+    });
+    const peoplePath = points
+      .map(
+        (point, index) =>
+          `${index === 0 ? "M" : "L"} ${x(point.timestamp)} ${peopleY(point.people)}`,
+      )
+      .join(" ");
+    el.historyChart.appendChild(
+      svgElement("path", {
+        d: presencePath,
+        class: "history-presence-line",
+      }),
+    );
+    el.historyChart.appendChild(
+      svgElement("path", { d: peoplePath, class: "history-people-line" }),
+    );
+    [
+      { x: 10, y: presenceY(true) + 4, text: "ON" },
+      { x: 10, y: presenceY(false) + 4, text: "OFF" },
+      { x: left, y: height - 10, text: formatTime(points[0].timestamp) },
+      {
+        x: width - right,
+        y: height - 10,
+        text: formatTime(points.at(-1).timestamp),
+        anchor: "end",
+      },
+    ].forEach((label) => {
+      const node = svgElement("text", {
+        x: label.x,
+        y: label.y,
+        class: "history-chart-label",
+        "text-anchor": label.anchor || "start",
+      });
+      node.textContent = label.text;
+      el.historyChart.appendChild(node);
+    });
+    description.textContent =
+      `${points.length} cambios de presencia. ` +
+      `Máximo de personas estimadas: ${maxPeople}.`;
+    setMiniStatus(
+      el.historyChartStatus,
+      state.history.truncated
+        ? `serie truncada a ${points.length} cambios`
+        : `${points.length} cambios`,
+      state.history.truncated,
+    );
+  }
+
+  function render() {
+    renderOptions();
+    renderEvents();
+    renderChart();
+  }
+
+  async function fetchConfig() {
+    state.history.config = await fetchJson("/api/history/config", {
+      cache: "no-store",
+    });
+    renderConfig();
+    return state.history.config;
+  }
+
+  async function fetchHistory() {
+    const params = buildHistorySearchParams(state.history.filters);
+    params.set("page", String(state.history.page));
+    params.set("page_size", String(state.history.pageSize));
+    const presenceParams = buildHistorySearchParams(state.history.filters);
+    presenceParams.set("max_points", "1000");
+    const [eventsResult, presenceResult] = await Promise.all([
+      fetchJson("/api/history/events?" + params, { cache: "no-store" }),
+      fetchJson("/api/history/presence?" + presenceParams, {
+        cache: "no-store",
+      }),
+    ]);
+    state.history.items = Array.isArray(eventsResult.items)
+      ? eventsResult.items
+      : [];
+    state.history.total = Number(eventsResult.total || 0);
+    state.history.page = Number(eventsResult.page || 1);
+    state.history.pages = Number(eventsResult.pages || 1);
+    state.history.options = eventsResult.options || state.history.options;
+    state.history.points = Array.isArray(presenceResult.points)
+      ? presenceResult.points
+      : [];
+    state.history.sourceEvents = Number(presenceResult.source_events || 0);
+    state.history.truncated = !!presenceResult.truncated;
+    state.history.newEvents = false;
+    render();
+  }
+
+  async function saveConfig() {
+    const modes = [
+      el.historyModeListen,
+      el.historyModeReplay,
+      el.historyModeSimulator,
+    ]
+      .filter((input) => input.checked)
+      .map((input) => input.value);
+    if (!modes.length) {
+      setMiniStatus(
+        el.historyConfigStatus,
+        "selecciona al menos un modo",
+        true,
+      );
+      return;
+    }
+    try {
+      el.historyConfigSaveBtn.disabled = true;
+      state.history.config = await fetchJson("/api/history/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled: el.historyEnabled.value === "true",
+          retention_days: Number(el.historyRetentionDays.value || 365),
+          persisted_modes: modes,
+        }),
+      });
+      renderConfig();
+      setMiniStatus(
+        el.historyConfigStatus,
+        "configuración guardada",
+        false,
+      );
+      await fetchHistory();
+    } catch (error) {
+      setMiniStatus(
+        el.historyConfigStatus,
+        String(error.message || error),
+        true,
+      );
+    } finally {
+      el.historyConfigSaveBtn.disabled = false;
+    }
+  }
+
+  async function purge() {
+    if (el.historyPurgeConfirmation.value !== "BORRAR") return;
+    try {
+      el.historyPurgeBtn.disabled = true;
+      const result = await fetchJson("/api/history/purge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: "BORRAR" }),
+      });
+      el.historyPurgeConfirmation.value = "";
+      setMiniStatus(
+        el.historyConfigStatus,
+        `historial borrado: ${formatInteger(result.deleted || 0)} eventos`,
+        false,
+      );
+      await Promise.all([fetchConfig(), fetchHistory()]);
+    } catch (error) {
+      setMiniStatus(
+        el.historyConfigStatus,
+        String(error.message || error),
+        true,
+      );
+    } finally {
+      el.historyPurgeBtn.disabled =
+        el.historyPurgeConfirmation.value !== "BORRAR";
+    }
+  }
+
+  function applyFilters() {
+    state.history.filters = {
+      query: el.historyQuery.value.trim(),
+      sensorType: el.historySensorType.value,
+      room: el.historyRoom.value,
+      inputMode: el.historyInputMode.value,
+      fromTs: localInputToIso(el.historyFrom.value),
+      toTs: localInputToIso(el.historyTo.value),
+    };
+    state.history.page = 1;
+    fetchHistory().catch((error) =>
+      setMiniStatus(
+        el.historyChartStatus,
+        String(error.message || error),
+        true,
+      ),
+    );
+  }
+
+  function clearFilters() {
+    state.history.filters = {
+      query: "",
+      sensorType: "",
+      room: "",
+      inputMode: "listen",
+      fromTs: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      toTs: "",
+    };
+    el.historyQuery.value = "";
+    el.historySensorType.value = "";
+    el.historyRoom.value = "";
+    el.historyInputMode.value = "listen";
+    el.historyFrom.value = isoToLocalInput(state.history.filters.fromTs);
+    el.historyTo.value = "";
+    state.history.page = 1;
+    fetchHistory().catch((error) =>
+      setMiniStatus(
+        el.historyChartStatus,
+        String(error.message || error),
+        true,
+      ),
+    );
+  }
+
+  function scheduleRefresh() {
+    if (state.history.page !== 1) {
+      state.history.newEvents = true;
+      el.historyNewEventsBtn.hidden = false;
+      return;
+    }
+    if (state.history.refreshTimer) {
+      windowRef.clearTimeout(state.history.refreshTimer);
+    }
+    state.history.refreshTimer = windowRef.setTimeout(() => {
+      state.history.refreshTimer = null;
+      Promise.all([fetchHistory(), fetchConfig()]).catch(() => {});
+    }, 500);
+  }
+
+  function registerActions() {
+    el.historyConfigSaveBtn.addEventListener("click", saveConfig);
+    el.historyPurgeConfirmation.addEventListener("input", () => {
+      el.historyPurgeBtn.disabled =
+        el.historyPurgeConfirmation.value !== "BORRAR";
+    });
+    el.historyPurgeBtn.addEventListener("click", purge);
+    el.historyFilterForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      applyFilters();
+    });
+    el.historyClearBtn.addEventListener("click", clearFilters);
+    el.historyPrevBtn.addEventListener("click", () => {
+      if (state.history.page <= 1) return;
+      state.history.page -= 1;
+      fetchHistory().catch((error) =>
+        setMiniStatus(
+          el.historyChartStatus,
+          String(error.message || error),
+          true,
+        ),
+      );
+    });
+    el.historyNextBtn.addEventListener("click", () => {
+      if (state.history.page >= state.history.pages) return;
+      state.history.page += 1;
+      fetchHistory().catch((error) =>
+        setMiniStatus(
+          el.historyChartStatus,
+          String(error.message || error),
+          true,
+        ),
+      );
+    });
+    el.historyNewEventsBtn.addEventListener("click", () => {
+      state.history.page = 1;
+      fetchHistory().catch((error) =>
+        setMiniStatus(
+          el.historyChartStatus,
+          String(error.message || error),
+          true,
+        ),
+      );
+    });
+  }
+
+  function initializeFilters() {
+    el.historyFrom.value = isoToLocalInput(state.history.filters.fromTs);
+  }
+
+  return {
+    fetch: fetchHistory,
+    fetchConfig,
+    initializeFilters,
+    registerActions,
+    render,
+    renderConfig,
+    scheduleRefresh,
+  };
+}
