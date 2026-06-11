@@ -9,6 +9,69 @@ import {
 } from "./format.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+export const HISTORY_FILTER_STORAGE_KEY =
+  "inferencia-presencia.history-filters.v1";
+
+export function defaultHistoryFilters() {
+  return {
+    query: "",
+    sensorType: "",
+    room: "",
+    inputMode: "",
+    fromTs: "",
+    toTs: "",
+  };
+}
+
+export function normalizeHistoryFilters(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return {
+    query: String(source.query || ""),
+    sensorType: String(source.sensorType || ""),
+    room: String(source.room || ""),
+    inputMode: ["", "listen", "replay", "simulator"].includes(
+      String(source.inputMode || ""),
+    )
+      ? String(source.inputMode || "")
+      : "",
+    fromTs: String(source.fromTs || ""),
+    toTs: String(source.toTs || ""),
+  };
+}
+
+export function parseHistoryFilters(rawValue) {
+  try {
+    return rawValue
+      ? normalizeHistoryFilters(JSON.parse(rawValue))
+      : defaultHistoryFilters();
+  } catch (_error) {
+    return defaultHistoryFilters();
+  }
+}
+
+export function loadHistoryFilters(storage) {
+  if (!storage) return defaultHistoryFilters();
+  try {
+    return parseHistoryFilters(storage.getItem(HISTORY_FILTER_STORAGE_KEY));
+  } catch (_error) {
+    return defaultHistoryFilters();
+  }
+}
+
+export function saveHistoryFilters(storage, filters) {
+  const normalized = normalizeHistoryFilters(filters);
+  if (!storage) return normalized;
+  try {
+    storage.setItem(HISTORY_FILTER_STORAGE_KEY, JSON.stringify(normalized));
+  } catch (_error) {
+    // El historial sigue operativo cuando el navegador bloquea el almacenamiento.
+  }
+  return normalized;
+}
+
+export function hasActiveHistoryFilters(filters) {
+  return Object.values(normalizeHistoryFilters(filters)).some(Boolean);
+}
 
 export function buildHistorySearchParams(filters) {
   return new URLSearchParams({
@@ -30,6 +93,16 @@ export function createHistoryController({
   documentRef = document,
   windowRef = window,
 }) {
+  let filterInputTimer = null;
+
+  function getStorage() {
+    try {
+      return windowRef.localStorage;
+    } catch (_error) {
+      return null;
+    }
+  }
+
   function renderConfig() {
     const config = state.history.config || {};
     const modes = new Set(
@@ -59,8 +132,13 @@ export function createHistoryController({
     );
   }
 
-  function populateSelect(select, values, emptyLabel, labelFormatter) {
-    const current = select.value;
+  function populateSelect(
+    select,
+    values,
+    emptyLabel,
+    labelFormatter,
+    selectedValue = select.value,
+  ) {
     select.innerHTML = "";
     const empty = documentRef.createElement("option");
     empty.value = "";
@@ -75,17 +153,28 @@ export function createHistoryController({
       select.appendChild(option);
     });
     select.value = [...select.options].some(
-      (option) => option.value === current,
+      (option) => option.value === selectedValue,
     )
-      ? current
+      ? selectedValue
       : "";
   }
 
   function renderOptions() {
     const options = state.history.options || {};
-    populateSelect(el.historySensorType, options.sensor_types, "Todos");
-    populateSelect(el.historyRoom, options.rooms, "Todas");
-    const selectedMode = el.historyInputMode.value;
+    populateSelect(
+      el.historySensorType,
+      options.sensor_types,
+      "Todos",
+      undefined,
+      state.history.filters.sensorType,
+    );
+    populateSelect(
+      el.historyRoom,
+      options.rooms,
+      "Todas",
+      undefined,
+      state.history.filters.room,
+    );
     const modes = [
       ...new Set([
         ...(options.input_modes || []),
@@ -94,15 +183,18 @@ export function createHistoryController({
         "simulator",
       ]),
     ];
-    populateSelect(el.historyInputMode, modes, "Todos", (mode) => {
-      if (mode === "listen") return "Escucha";
-      if (mode === "replay") return "Replay";
-      if (mode === "simulator") return "Simulador";
-      return String(mode);
-    });
-    el.historyInputMode.value = modes.includes(selectedMode)
-      ? selectedMode
-      : "";
+    populateSelect(
+      el.historyInputMode,
+      modes,
+      "Todos",
+      (mode) => {
+        if (mode === "listen") return "Escucha";
+        if (mode === "replay") return "Replay";
+        if (mode === "simulator") return "Simulador";
+        return String(mode);
+      },
+      state.history.filters.inputMode,
+    );
     el.historySensorOptions.innerHTML = "";
     (options.sensors || []).forEach((sensor) => {
       const option = documentRef.createElement("option");
@@ -114,13 +206,20 @@ export function createHistoryController({
 
   function renderEvents() {
     el.eventList.innerHTML = "";
+    const eventNoun = state.history.total === 1 ? " evento" : " eventos";
     el.eventSummary.textContent =
-      formatInteger(state.history.total) + " eventos filtrados";
+      formatInteger(state.history.total) +
+      eventNoun +
+      (hasActiveHistoryFilters(state.history.filters)
+        ? " filtrados"
+        : "");
     if (!state.history.items.length) {
       const row = documentRef.createElement("tr");
       const cell = documentRef.createElement("td");
       cell.colSpan = 9;
-      cell.textContent = "No hay eventos para los filtros seleccionados";
+      cell.textContent = hasActiveHistoryFilters(state.history.filters)
+        ? "No hay eventos para los filtros seleccionados"
+        : "No hay eventos registrados";
       row.appendChild(cell);
       el.eventList.appendChild(row);
     }
@@ -409,15 +508,36 @@ export function createHistoryController({
     }
   }
 
-  function applyFilters() {
-    state.history.filters = {
+  function filtersFromControls() {
+    return normalizeHistoryFilters({
       query: el.historyQuery.value.trim(),
       sensorType: el.historySensorType.value,
       room: el.historyRoom.value,
       inputMode: el.historyInputMode.value,
       fromTs: localInputToIso(el.historyFrom.value),
       toTs: localInputToIso(el.historyTo.value),
-    };
+    });
+  }
+
+  function renderFilterControls() {
+    const filters = state.history.filters;
+    el.historyQuery.value = filters.query;
+    el.historySensorType.value = filters.sensorType;
+    el.historyRoom.value = filters.room;
+    el.historyInputMode.value = filters.inputMode;
+    el.historyFrom.value = isoToLocalInput(filters.fromTs);
+    el.historyTo.value = isoToLocalInput(filters.toTs);
+  }
+
+  function applyFilters() {
+    if (filterInputTimer) {
+      windowRef.clearTimeout(filterInputTimer);
+      filterInputTimer = null;
+    }
+    state.history.filters = saveHistoryFilters(
+      getStorage(),
+      filtersFromControls(),
+    );
     state.history.page = 1;
     fetchHistory().catch((error) =>
       setMiniStatus(
@@ -429,20 +549,11 @@ export function createHistoryController({
   }
 
   function clearFilters() {
-    state.history.filters = {
-      query: "",
-      sensorType: "",
-      room: "",
-      inputMode: "listen",
-      fromTs: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      toTs: "",
-    };
-    el.historyQuery.value = "";
-    el.historySensorType.value = "";
-    el.historyRoom.value = "";
-    el.historyInputMode.value = "listen";
-    el.historyFrom.value = isoToLocalInput(state.history.filters.fromTs);
-    el.historyTo.value = "";
+    state.history.filters = saveHistoryFilters(
+      getStorage(),
+      defaultHistoryFilters(),
+    );
+    renderFilterControls();
     state.history.page = 1;
     fetchHistory().catch((error) =>
       setMiniStatus(
@@ -451,6 +562,16 @@ export function createHistoryController({
         true,
       ),
     );
+  }
+
+  function scheduleFilterApply() {
+    if (filterInputTimer) {
+      windowRef.clearTimeout(filterInputTimer);
+    }
+    filterInputTimer = windowRef.setTimeout(() => {
+      filterInputTimer = null;
+      applyFilters();
+    }, 350);
   }
 
   function scheduleRefresh() {
@@ -479,6 +600,17 @@ export function createHistoryController({
       event.preventDefault();
       applyFilters();
     });
+    for (const select of [
+      el.historySensorType,
+      el.historyRoom,
+      el.historyInputMode,
+    ]) {
+      select.addEventListener("change", applyFilters);
+    }
+    for (const dateInput of [el.historyFrom, el.historyTo]) {
+      dateInput.addEventListener("change", applyFilters);
+    }
+    el.historyQuery.addEventListener("input", scheduleFilterApply);
     el.historyClearBtn.addEventListener("click", clearFilters);
     el.historyPrevBtn.addEventListener("click", () => {
       if (state.history.page <= 1) return;
@@ -512,10 +644,26 @@ export function createHistoryController({
         ),
       );
     });
+    if (typeof windowRef.addEventListener === "function") {
+      windowRef.addEventListener("storage", (event) => {
+        if (event.key !== HISTORY_FILTER_STORAGE_KEY) return;
+        state.history.filters = parseHistoryFilters(event.newValue);
+        renderFilterControls();
+        state.history.page = 1;
+        fetchHistory().catch((error) =>
+          setMiniStatus(
+            el.historyChartStatus,
+            String(error.message || error),
+            true,
+          ),
+        );
+      });
+    }
   }
 
   function initializeFilters() {
-    el.historyFrom.value = isoToLocalInput(state.history.filters.fromTs);
+    state.history.filters = loadHistoryFilters(getStorage());
+    renderFilterControls();
   }
 
   return {

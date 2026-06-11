@@ -25,6 +25,8 @@ from inferencia_hub.hub.sensors import SensorsMixin
 from inferencia_hub.hub.snapshot import SnapshotMixin
 from inferencia_hub.hub_state import InferenceHubState as ExportedHubState
 from inferencia_hub.runtime import HANDLERS
+from inferencia_hub.runtime.lifecycle import persist_history_event
+from inferencia_hub.runtime.shared import hub_state
 
 
 class ComponentStructureTest(unittest.TestCase):
@@ -73,6 +75,7 @@ class ComponentStructureTest(unittest.TestCase):
         self.assertIn("ingest_event", HANDLERS)
         self.assertIn("replay_csv", HANDLERS)
         self.assertIn("train_model", HANDLERS)
+        self.assertIs(hub_state.event_sink, persist_history_event)
 
     def test_exported_hub_state_includes_required_operations(self) -> None:
         self.assertIs(ExportedHubState, InferenceHubState)

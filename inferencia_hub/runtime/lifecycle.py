@@ -60,6 +60,9 @@ async def persist_history_event(
         LOGGER.error("No se pudo confirmar la escritura del evento %s", event["entity_id"])
 
 
+hub_state.event_sink = persist_history_event
+
+
 def resolve_training_csv() -> str | None:
     candidates = [
         os.getenv("TRAINING_CSV_PATH", ""),

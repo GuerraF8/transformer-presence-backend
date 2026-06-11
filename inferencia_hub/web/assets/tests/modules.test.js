@@ -15,7 +15,14 @@ import {
   cloneRealSensorConfig,
   realSensorAssignmentChanged,
 } from "../panel/real-sensors.js";
-import { buildHistorySearchParams } from "../panel/history.js";
+import {
+  HISTORY_FILTER_STORAGE_KEY,
+  buildHistorySearchParams,
+  defaultHistoryFilters,
+  hasActiveHistoryFilters,
+  loadHistoryFilters,
+  saveHistoryFilters,
+} from "../panel/history.js";
 import { collectRooms } from "../panel/rooms.js";
 import { numberFromSelect } from "../panel/replay-training.js";
 import {
@@ -55,16 +62,14 @@ test("simulator state is isolated per instance", () => {
   assert.equal(second.switches.size, 0);
 });
 
-test("panel state is isolated and defaults to the last 24 hours", () => {
-  const now = Date.parse("2026-06-10T00:00:00Z");
-  const first = createPanelState(now);
-  const second = createPanelState(now);
+test("panel state is isolated and history defaults include all events", () => {
+  const first = createPanelState();
+  const second = createPanelState();
   first.rooms.push("kitchen");
   assert.deepEqual(second.rooms, []);
-  assert.equal(
-    first.history.filters.fromTs,
-    "2026-06-09T00:00:00.000Z",
-  );
+  assert.deepEqual(first.history.filters, defaultHistoryFilters());
+  assert.equal(first.history.filters.inputMode, "");
+  assert.equal(first.history.filters.fromTs, "");
 });
 
 test("map helpers normalize adjacency without duplicate edges", () => {
@@ -103,6 +108,42 @@ test("history filters map to the backend query contract", () => {
   assert.equal(params.get("sensor_type"), "motion");
   assert.equal(params.get("input_mode"), "listen");
   assert.equal(params.get("query"), "kitchen");
+  assert.equal(hasActiveHistoryFilters(defaultHistoryFilters()), false);
+  assert.equal(hasActiveHistoryFilters({ room: "kitchen" }), true);
+});
+
+test("history filters persist and restore from browser storage", () => {
+  const values = new Map();
+  const storage = {
+    getItem(key) {
+      return values.get(key) ?? null;
+    },
+    setItem(key, value) {
+      values.set(key, value);
+    },
+  };
+  const filters = {
+    query: "motion",
+    sensorType: "motion",
+    room: "kitchen",
+    inputMode: "simulator",
+    fromTs: "2026-06-09T00:00:00Z",
+    toTs: "",
+  };
+
+  saveHistoryFilters(storage, filters);
+
+  assert.ok(values.has(HISTORY_FILTER_STORAGE_KEY));
+  assert.deepEqual(loadHistoryFilters(storage), filters);
+});
+
+test("invalid persisted history filters fall back to all events", () => {
+  const storage = {
+    getItem() {
+      return "{invalid";
+    },
+  };
+  assert.deepEqual(loadHistoryFilters(storage), defaultHistoryFilters());
 });
 
 test("room collection combines configured and layout rooms", () => {

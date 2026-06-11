@@ -1,4 +1,4 @@
-export function createPanelState(now = Date.now()) {
+export function createPanelState() {
   return {
     ws: null,
     rooms: [],
@@ -64,8 +64,8 @@ export function createPanelState(now = Date.now()) {
         query: "",
         sensorType: "",
         room: "",
-        inputMode: "listen",
-        fromTs: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
+        inputMode: "",
+        fromTs: "",
         toTs: "",
       },
     },
