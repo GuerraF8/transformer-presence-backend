@@ -109,6 +109,12 @@ export function registerProfileEvents({
     actions.addEdge(el.profileEdgeFrom.value, el.profileEdgeTo.value);
     actions.render();
   });
+  el.profileEdgeFrom?.addEventListener("change", () => {
+    state.profiles.edgeFrom = el.profileEdgeFrom.value;
+  });
+  el.profileEdgeTo?.addEventListener("change", () => {
+    state.profiles.edgeTo = el.profileEdgeTo.value;
+  });
   el.profileEdgeList?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-profile-edge-remove]");
     const profile = actions.draft();

@@ -37,6 +37,8 @@ export function createPanelState() {
     eventSort: "time",
     modelInfo: {},
     presenceFilter: {},
+    presenceFilterDraft: null,
+    presenceFilterDirty: false,
     haEntityCatalog: {},
     haActions: {},
     profiles: {
@@ -47,6 +49,8 @@ export function createPanelState() {
       dirty: false,
       proposals: [],
       areaFilter: "",
+      edgeFrom: "",
+      edgeTo: "",
     },
     realSensorConfig: {
       rooms: [],
@@ -59,6 +63,8 @@ export function createPanelState() {
     trainingPollTimer: null,
     history: {
       config: {},
+      configDraft: null,
+      configDirty: false,
       items: [],
       total: 0,
       page: 1,

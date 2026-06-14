@@ -16,11 +16,15 @@ import {
   realSensorAssignmentChanged,
 } from "../panel/real-sensors.js";
 import {
+  normalizePresenceFilterDraft,
+} from "../panel/dashboard.js";
+import {
   HISTORY_FILTER_STORAGE_KEY,
   buildHistorySearchParams,
   defaultHistoryFilters,
   hasActiveHistoryFilters,
   loadHistoryFilters,
+  normalizeHistoryConfigDraft,
   saveHistoryFilters,
 } from "../panel/history.js";
 import { collectRooms } from "../panel/rooms.js";
@@ -38,8 +42,10 @@ import {
 } from "../simulator/api.js";
 import {
   availableRoomSlug,
+  profileSelectionChanged,
   profileSlug,
   profileUpdatePayload,
+  validProfileRoomSelection,
 } from "../panel/profile-draft.js";
 import {
   appendProfileEdge,
@@ -89,6 +95,37 @@ test("panel state is isolated and history defaults include all events", () => {
   assert.equal(first.history.filters.inputMode, "");
   assert.equal(first.history.filters.fromTs, "");
   assert.equal(first.history.alerts.pageSize, 25);
+  assert.equal(first.presenceFilterDirty, false);
+  assert.equal(first.history.configDirty, false);
+});
+
+test("configuration drafts normalize editable controls", () => {
+  assert.deepEqual(
+    normalizePresenceFilterDraft({
+      enabled: false,
+      window_seconds: 90,
+      min_motion_events: 5,
+      min_distinct_rooms: 3,
+    }),
+    {
+      enabled: false,
+      window_seconds: 90,
+      min_motion_events: 5,
+      min_distinct_rooms: 3,
+    },
+  );
+  assert.deepEqual(
+    normalizeHistoryConfigDraft({
+      enabled: true,
+      retention_days: 30,
+      persisted_modes: ["listen", "invalid", "simulator"],
+    }),
+    {
+      enabled: true,
+      retention_days: 30,
+      persisted_modes: ["listen", "simulator"],
+    },
+  );
 });
 
 test("backend URLs preserve the Home Assistant proxy prefix", () => {
@@ -252,6 +289,20 @@ test("profile draft helpers preserve stable slugs and update contracts", () => {
       assignments: [],
       edges: [],
     },
+  );
+  const rooms = [{ slug: "kitchen" }, { slug: "living" }];
+  assert.equal(
+    validProfileRoomSelection("kitchen", rooms),
+    "kitchen",
+  );
+  assert.equal(validProfileRoomSelection("bedroom", rooms), "");
+  assert.equal(
+    profileSelectionChanged("profile-1", { id: "profile-1" }),
+    false,
+  );
+  assert.equal(
+    profileSelectionChanged("profile-1", { id: "profile-2" }),
+    true,
   );
 });
 

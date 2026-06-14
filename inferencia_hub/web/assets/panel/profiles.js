@@ -9,7 +9,9 @@ import {
 } from "./profile-api.js";
 import {
   cloneProfile,
+  profileSelectionChanged,
   profileUpdatePayload,
+  validProfileRoomSelection,
 } from "./profile-draft.js";
 import {
   renderProfileEntities,
@@ -60,11 +62,15 @@ export function createProfilesController({
     setMiniStatus(el.profileStatus, message, isError);
   }
 
-  function selectDraft(profile) {
+  function selectDraft(profile, { resetConnections = true } = {}) {
     state.profiles.selectedId = profile?.id || null;
     state.profiles.draft = cloneProfile(profile);
     state.profiles.dirty = false;
     state.profiles.proposals = [];
+    if (resetConnections) {
+      state.profiles.edgeFrom = "";
+      state.profiles.edgeTo = "";
+    }
   }
 
   function markDirty(message = "Hay cambios pendientes en el perfil") {
@@ -125,7 +131,21 @@ export function createProfilesController({
   function renderEdges() {
     const current = draft();
     if (!current) return;
-    renderProfileEdges({ el, profile: current, documentRef });
+    state.profiles.edgeFrom = validProfileRoomSelection(
+      state.profiles.edgeFrom,
+      current.rooms,
+    );
+    state.profiles.edgeTo = validProfileRoomSelection(
+      state.profiles.edgeTo,
+      current.rooms,
+    );
+    renderProfileEdges({
+      el,
+      profile: current,
+      selectedFrom: state.profiles.edgeFrom,
+      selectedTo: state.profiles.edgeTo,
+      documentRef,
+    });
   }
 
   function renderProposals() {
@@ -166,12 +186,18 @@ export function createProfilesController({
       ]),
     );
     if (!preserveDraft || !state.profiles.dirty) {
+      const previousSelectedId = state.profiles.selectedId;
       const selected =
         profileById(state.profiles.selectedId) ||
         payload.active_profile ||
         state.profiles.items[0] ||
         null;
-      selectDraft(selected);
+      selectDraft(selected, {
+        resetConnections: profileSelectionChanged(
+          previousSelectedId,
+          selected,
+        ),
+      });
     }
     render();
     return payload;

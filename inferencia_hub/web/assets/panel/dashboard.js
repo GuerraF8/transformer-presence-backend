@@ -12,6 +12,16 @@ function selectOption(select, value) {
   }
 }
 
+export function normalizePresenceFilterDraft(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return {
+    enabled: source.enabled !== false,
+    window_seconds: Number(source.window_seconds || 20),
+    min_motion_events: Number(source.min_motion_events || 2),
+    min_distinct_rooms: Number(source.min_distinct_rooms || 1),
+  };
+}
+
 export function createDashboardController({
   state,
   el,
@@ -50,17 +60,34 @@ export function createDashboardController({
   }
 
   function renderPresenceFilter() {
-    const config = state.presenceFilter || {};
-    el.petFilterEnabled.value = config.enabled === false ? "false" : "true";
-    selectOption(el.petFilterWindowInput, config.window_seconds || 20);
-    selectOption(el.petFilterMinEventsInput, config.min_motion_events || 2);
-    selectOption(el.petFilterMinRoomsInput, config.min_distinct_rooms || 1);
+    const remote = state.presenceFilter || {};
+    const config = state.presenceFilterDirty
+      ? state.presenceFilterDraft
+      : remote;
+    const draft = normalizePresenceFilterDraft(config);
+    el.petFilterEnabled.value = draft.enabled ? "true" : "false";
+    selectOption(el.petFilterWindowInput, draft.window_seconds);
+    selectOption(el.petFilterMinEventsInput, draft.min_motion_events);
+    selectOption(el.petFilterMinRoomsInput, draft.min_distinct_rooms);
     setMiniStatus(
       el.petFilterStatus,
-      `filtrados: ${config.suppressed_total || 0} | ` +
-        `ventana activa: ${config.pending_motion_events || 0}`,
+      state.presenceFilterDirty
+        ? "cambios pendientes: pulsa Aplicar filtro"
+        : `filtrados: ${remote.suppressed_total || 0} | ` +
+          `ventana activa: ${remote.pending_motion_events || 0}`,
       false,
     );
+  }
+
+  function updatePresenceFilterDraft() {
+    state.presenceFilterDraft = {
+      enabled: el.petFilterEnabled.value !== "false",
+      window_seconds: numberFromSelect(el.petFilterWindowInput, 20),
+      min_motion_events: numberFromSelect(el.petFilterMinEventsInput, 2),
+      min_distinct_rooms: numberFromSelect(el.petFilterMinRoomsInput, 1),
+    };
+    state.presenceFilterDirty = true;
+    renderPresenceFilter();
   }
 
   function renderMaps() {
@@ -141,17 +168,19 @@ export function createDashboardController({
   async function fetchPresenceFilter() {
     state.presenceFilter =
       (await fetchJson("/api/presence_filter", { cache: "no-store" })) || {};
+    if (!state.presenceFilterDirty) {
+      state.presenceFilterDraft = normalizePresenceFilterDraft(
+        state.presenceFilter,
+      );
+    }
     renderPresenceFilter();
     return state.presenceFilter;
   }
 
   async function applyPresenceFilter() {
-    const payload = {
-      enabled: el.petFilterEnabled.value !== "false",
-      window_seconds: numberFromSelect(el.petFilterWindowInput, 20),
-      min_motion_events: numberFromSelect(el.petFilterMinEventsInput, 2),
-      min_distinct_rooms: numberFromSelect(el.petFilterMinRoomsInput, 1),
-    };
+    const payload = normalizePresenceFilterDraft(
+      state.presenceFilterDraft || state.presenceFilter,
+    );
     try {
       state.presenceFilter =
         (await fetchJson("/api/presence_filter", {
@@ -159,6 +188,10 @@ export function createDashboardController({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         })) || payload;
+      state.presenceFilterDraft = normalizePresenceFilterDraft(
+        state.presenceFilter,
+      );
+      state.presenceFilterDirty = false;
       renderPresenceFilter();
       setMiniStatus(el.petFilterStatus, "filtro aplicado", false);
     } catch (error) {
@@ -207,6 +240,14 @@ export function createDashboardController({
 
   function registerActions() {
     el.petFilterApplyBtn.addEventListener("click", applyPresenceFilter);
+    for (const select of [
+      el.petFilterEnabled,
+      el.petFilterWindowInput,
+      el.petFilterMinEventsInput,
+      el.petFilterMinRoomsInput,
+    ]) {
+      select.addEventListener("change", updatePresenceFilterDraft);
+    }
     el.layoutApplyBtn.addEventListener("click", applyReferenceLayout);
     el.layoutText.addEventListener("input", () => {
       state.layoutTextDirty = true;

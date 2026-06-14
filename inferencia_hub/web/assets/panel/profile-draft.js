@@ -22,6 +22,17 @@ export function availableRoomSlug(base, rooms) {
   return `${base}_${suffix}`;
 }
 
+export function validProfileRoomSelection(value, rooms) {
+  const selected = String(value || "");
+  return (rooms || []).some((room) => room.slug === selected)
+    ? selected
+    : "";
+}
+
+export function profileSelectionChanged(previousId, selectedProfile) {
+  return (selectedProfile?.id || null) !== (previousId || null);
+}
+
 export function profileUpdatePayload(profile) {
   return {
     revision: profile.revision,

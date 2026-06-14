@@ -102,14 +102,20 @@ export function renderProfileRooms({
 export function renderProfileEdges({
   el,
   profile,
+  selectedFrom = "",
+  selectedTo = "",
   documentRef = document,
 }) {
-  for (const select of [el.profileEdgeFrom, el.profileEdgeTo]) {
+  for (const [select, selected] of [
+    [el.profileEdgeFrom, selectedFrom],
+    [el.profileEdgeTo, selectedTo],
+  ]) {
     select.innerHTML = "";
     select.add(new Option("Selecciona", ""));
     for (const room of profile.rooms || []) {
       select.add(new Option(room.name || room.slug, room.slug));
     }
+    select.value = selected;
   }
   el.profileEdgeList.innerHTML = "";
   for (const [index, edge] of (profile.edges || []).entries()) {

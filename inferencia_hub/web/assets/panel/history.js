@@ -84,6 +84,18 @@ export function buildHistorySearchParams(filters) {
   });
 }
 
+export function normalizeHistoryConfigDraft(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const validModes = new Set(["listen", "replay", "simulator"]);
+  return {
+    enabled: source.enabled !== false,
+    retention_days: Number(source.retention_days || 365),
+    persisted_modes: Array.isArray(source.persisted_modes)
+      ? source.persisted_modes.filter((mode) => validModes.has(mode))
+      : [],
+  };
+}
+
 export function createHistoryController({
   state,
   el,
@@ -104,32 +116,54 @@ export function createHistoryController({
   }
 
   function renderConfig() {
-    const config = state.history.config || {};
+    const remote = state.history.config || {};
+    const config = state.history.configDirty
+      ? state.history.configDraft
+      : remote;
+    const draft = normalizeHistoryConfigDraft(config);
     const modes = new Set(
-      Array.isArray(config.persisted_modes) ? config.persisted_modes : [],
+      draft.persisted_modes,
     );
-    el.historyEnabled.value = String(config.enabled !== false);
-    el.historyRetentionDays.value = String(config.retention_days || 365);
+    el.historyEnabled.value = String(draft.enabled);
+    el.historyRetentionDays.value = String(draft.retention_days);
     el.historyModeListen.checked = modes.has("listen");
     el.historyModeReplay.checked = modes.has("replay");
     el.historyModeSimulator.checked = modes.has("simulator");
-    el.historyConfigTotal.textContent = formatInteger(config.events_total || 0);
-    el.historyConfigSize.textContent = formatBytes(config.database_size_bytes);
-    el.historyConfigRange.textContent = config.first_timestamp
-      ? formatTime(config.first_timestamp) +
+    el.historyConfigTotal.textContent = formatInteger(remote.events_total || 0);
+    el.historyConfigSize.textContent = formatBytes(remote.database_size_bytes);
+    el.historyConfigRange.textContent = remote.first_timestamp
+      ? formatTime(remote.first_timestamp) +
         " - " +
-        formatTime(config.last_timestamp)
+        formatTime(remote.last_timestamp)
       : "Sin eventos";
-    el.historyConfigPath.textContent = String(config.database_path || "-");
+    el.historyConfigPath.textContent = String(remote.database_path || "-");
     setMiniStatus(
       el.historyConfigStatus,
-      config.last_error
-        ? "SQLite: " + config.last_error
-        : config.enabled === false
+      state.history.configDirty
+        ? "cambios pendientes: pulsa Guardar historial"
+        : remote.last_error
+          ? "SQLite: " + remote.last_error
+          : remote.enabled === false
           ? "persistencia desactivada"
           : "historial operativo",
-      !!config.last_error,
+      !!remote.last_error && !state.history.configDirty,
     );
+  }
+
+  function updateConfigDraft() {
+    state.history.configDraft = normalizeHistoryConfigDraft({
+      enabled: el.historyEnabled.value === "true",
+      retention_days: Number(el.historyRetentionDays.value || 365),
+      persisted_modes: [
+        el.historyModeListen,
+        el.historyModeReplay,
+        el.historyModeSimulator,
+      ]
+        .filter((input) => input.checked)
+        .map((input) => input.value),
+    });
+    state.history.configDirty = true;
+    renderConfig();
   }
 
   function populateSelect(
@@ -447,6 +481,11 @@ export function createHistoryController({
     state.history.config = await fetchJson("/api/history/config", {
       cache: "no-store",
     });
+    if (!state.history.configDirty) {
+      state.history.configDraft = normalizeHistoryConfigDraft(
+        state.history.config,
+      );
+    }
     renderConfig();
     return state.history.config;
   }
@@ -509,13 +548,10 @@ export function createHistoryController({
   }
 
   async function saveConfig() {
-    const modes = [
-      el.historyModeListen,
-      el.historyModeReplay,
-      el.historyModeSimulator,
-    ]
-      .filter((input) => input.checked)
-      .map((input) => input.value);
+    const draft = normalizeHistoryConfigDraft(
+      state.history.configDraft || state.history.config,
+    );
+    const modes = draft.persisted_modes;
     if (!modes.length) {
       setMiniStatus(
         el.historyConfigStatus,
@@ -530,11 +566,15 @@ export function createHistoryController({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          enabled: el.historyEnabled.value === "true",
-          retention_days: Number(el.historyRetentionDays.value || 365),
+          enabled: draft.enabled,
+          retention_days: draft.retention_days,
           persisted_modes: modes,
         }),
       });
+      state.history.configDraft = normalizeHistoryConfigDraft(
+        state.history.config,
+      );
+      state.history.configDirty = false;
       renderConfig();
       setMiniStatus(
         el.historyConfigStatus,
@@ -682,6 +722,16 @@ export function createHistoryController({
 
   function registerActions() {
     el.historyConfigSaveBtn.addEventListener("click", saveConfig);
+    for (const control of [
+      el.historyEnabled,
+      el.historyRetentionDays,
+      el.historyModeListen,
+      el.historyModeReplay,
+      el.historyModeSimulator,
+    ]) {
+      control.addEventListener("change", updateConfigDraft);
+    }
+    el.historyRetentionDays.addEventListener("input", updateConfigDraft);
     el.historyPurgeConfirmation.addEventListener("input", () => {
       el.historyPurgeBtn.disabled =
         el.historyPurgeConfirmation.value !== "BORRAR";
