@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import shutil
 
+import numpy as np
+
 from .shared import *  # noqa: F401,F403
 from ..profile_store import (
     ProfileNotFoundError,

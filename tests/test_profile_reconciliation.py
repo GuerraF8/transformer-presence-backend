@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import numpy as np
+
 from inferencia_hub.app_context import HAEntityCatalog
 from inferencia_hub.hub_state import InferenceHubState
 from inferencia_hub.profile_store import PresenceProfileStore
@@ -121,6 +123,33 @@ class ProfileReconciliationTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(assignment["enabled"])
         self.assertEqual(assignment["status"], "moved")
         self.assertTrue(assignment["warning"])
+
+    async def test_apply_profile_restores_loaded_model_presence_belief(self) -> None:
+        class LoadedModel:
+            def __init__(self) -> None:
+                self.rooms: list[str] = []
+
+            def load_state(self, _path: Path) -> dict[str, bool]:
+                self.rooms = ["office", "kitchen"]
+                return {"loaded": True}
+
+        with (
+            patch.object(
+                profile_runtime,
+                "_profile_model_status",
+                return_value={"available": True, "compatible": True},
+            ),
+            patch.object(profile_runtime, "AIAdjacencyModel", LoadedModel),
+        ):
+            await profile_runtime._apply_profile(self.profile)
+
+        self.assertTrue(
+            profile_runtime.hub_state.active_profile_model_compatible
+        )
+        np.testing.assert_allclose(
+            profile_runtime.hub_state.presence_belief,
+            np.array([0.5, 0.5], dtype=np.float32),
+        )
 
 
 class LegacyProfileMigrationTest(unittest.TestCase):
