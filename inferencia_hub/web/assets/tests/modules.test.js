@@ -29,6 +29,13 @@ import {
   applyEventState,
   applySnapshotState,
 } from "../panel/realtime.js";
+import {
+  resolveBackendUrl as resolvePanelBackendUrl,
+  resolveBackendWebSocketUrl,
+} from "../panel/api.js";
+import {
+  resolveBackendUrl as resolveSimulatorBackendUrl,
+} from "../simulator/api.js";
 
 test("format helpers preserve panel output contracts", () => {
   assert.equal(toPercent(0.125), "12.5%");
@@ -70,6 +77,26 @@ test("panel state is isolated and history defaults include all events", () => {
   assert.deepEqual(first.history.filters, defaultHistoryFilters());
   assert.equal(first.history.filters.inputMode, "");
   assert.equal(first.history.filters.fromTs, "");
+  assert.equal(first.history.alerts.pageSize, 25);
+});
+
+test("backend URLs preserve the Home Assistant proxy prefix", () => {
+  const panelBase =
+    "https://example.ui/api/inferencia_presencia/panel/token/?embedded=1";
+  const simulatorBase =
+    "https://example.ui/api/inferencia_presencia/panel/token/simulator.html";
+  assert.equal(
+    resolvePanelBackendUrl("/api/history/alerts", panelBase),
+    "https://example.ui/api/inferencia_presencia/panel/token/api/history/alerts",
+  );
+  assert.equal(
+    resolveSimulatorBackendUrl("/api/sim_data", simulatorBase),
+    "https://example.ui/api/inferencia_presencia/panel/token/api/sim_data",
+  );
+  assert.equal(
+    resolveBackendWebSocketUrl("presencia", panelBase),
+    "wss://example.ui/api/inferencia_presencia/panel/token/presencia",
+  );
 });
 
 test("map helpers normalize adjacency without duplicate edges", () => {

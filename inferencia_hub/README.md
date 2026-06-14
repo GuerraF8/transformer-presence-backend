@@ -17,6 +17,7 @@ Servicio externo para inferencia de presencia + visualizacion en vivo.
 - Snapshot compatible con `sim_data.json`: `GET /api/sim_data`
 - Configuracion del historial SQLite: `GET/PUT /api/history/config`
 - Consulta paginada y filtrada: `GET /api/history/events`
+- Alertas no adyacentes paginadas: `GET /api/history/alerts`
 - Serie de presencia y personas: `GET /api/history/presence`
 - Borrado total confirmado: `POST /api/history/purge`
 - WebSocket para panel live: `ws://<host>:8080/presencia`
@@ -53,13 +54,14 @@ Campos `sensor_type`, `room` y `timestamp` son opcionales; el servicio los infie
 
 ## Historial persistente
 
-La version 0.3.1 guarda en `/app/data/presence_history.sqlite3` el evento original,
+La version 0.4.0 guarda en `/app/data/presence_history.sqlite3` el evento original,
 la inferencia resultante y el modo de entrada. SQLite usa WAL, migraciones con
 `PRAGMA user_version`, indices de consulta y limpieza por retencion.
 
-La vista inicial del panel consulta las ultimas 24 horas del modo `listen`, con
-50 filas por pagina. Los filtros por sensor, tipo, habitacion, modo y fechas se
-aplican tanto a la tabla como al grafico escalonado.
+La vista inicial del panel consulta todos los eventos, con 50 filas por pagina.
+Los filtros por sensor, tipo, habitacion, modo y fechas se aplican a la tabla,
+al grafico escalonado y a las alertas no adyacentes. Estas ultimas usan una
+paginacion independiente de 25 filas y permanecen disponibles tras reinicios.
 
 Variables iniciales:
 

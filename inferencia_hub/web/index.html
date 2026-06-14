@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Inferencia Presencia | Home Assistant</title>
-  <link rel="stylesheet" href="/assets/styles.css" />
+  <link rel="stylesheet" href="assets/styles.css" />
 </head>
 <body>
   <div class="ha-app">
@@ -12,9 +12,9 @@
 
 
       <nav class="ha-nav">
-        <a class="ha-nav-item active" href="/" aria-current="page"><span aria-hidden="true">P</span>Panel</a>
-        <a class="ha-nav-item" href="/simulator.html" data-dev-only hidden><span aria-hidden="true">S</span>Simulador</a>
-        <a class="ha-nav-item" href="/docs" target="_blank" rel="noopener noreferrer" aria-label="Abrir Swagger UI de la API en una pestaña nueva"><span aria-hidden="true">A</span>API</a>
+        <a class="ha-nav-item active" href="./" aria-current="page"><span aria-hidden="true">P</span>Panel</a>
+        <a class="ha-nav-item" href="simulator.html" data-dev-only hidden><span aria-hidden="true">S</span>Simulador</a>
+        <a class="ha-nav-item" href="docs" target="_blank" rel="noopener noreferrer" aria-label="Abrir Swagger UI de la API en una pestaña nueva"><span aria-hidden="true">A</span>API</a>
       </nav>
 
       <div class="topbar-actions" aria-label="Controles del panel">
@@ -617,9 +617,15 @@
               <button id="historyNextBtn" type="button" class="secondary">Siguiente</button>
             </nav>
 
-            <div class="table-wrap alerts-table-wrap">
+            <div class="alerts-heading">
+              <h3>Alertas no adyacentes</h3>
+              <button id="alertNewEventsBtn" type="button" class="secondary" hidden>
+                Hay alertas nuevas
+              </button>
+            </div>
+            <div class="table-wrap alerts-table-wrap" tabindex="0" aria-label="Alertas no adyacentes paginadas">
               <table class="data-table">
-                <caption class="sr-only">Alertas no adyacentes</caption>
+                <caption class="sr-only">Alertas no adyacentes persistidas y filtradas</caption>
                 <thead>
                   <tr>
                     <th scope="col">Alerta</th>
@@ -632,12 +638,17 @@
                 <tbody id="alertList"></tbody>
               </table>
             </div>
+            <nav class="history-pagination" aria-label="Paginación de alertas no adyacentes">
+              <button id="alertPrevBtn" type="button" class="secondary">Anterior</button>
+              <span id="alertPageStatus" role="status" aria-live="polite">Página 1 de 1 · 0 alertas</span>
+              <button id="alertNextBtn" type="button" class="secondary">Siguiente</button>
+            </nav>
           </article>
         </section>
       </section>
     </main>
   </div>
 
-  <script type="module" src="/assets/app.js"></script>
+  <script type="module" src="assets/app.js"></script>
 </body>
 </html>

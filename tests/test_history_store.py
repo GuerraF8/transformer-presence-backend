@@ -18,6 +18,7 @@ def record(
     stored_at: str | None = None,
     event_timestamp: str = "2026-06-07T10:00:00Z",
     state: str = "on",
+    layout_alert: dict | None = None,
 ) -> dict:
     return {
         "event_timestamp": event_timestamp,
@@ -34,7 +35,7 @@ def record(
         "confidence": 0.91,
         "estimated_people": 1,
         "active_rooms": [room],
-        "layout_alert": None,
+        "layout_alert": layout_alert,
         "raw_payload": {"entity_id": entity_id},
         "inference_payload": {"presencia_inferida": "Presente"},
     }
@@ -144,6 +145,74 @@ class HistoryStoreTest(unittest.TestCase):
         deleted = self.store.cleanup()
 
         self.assertEqual(deleted, 1)
+
+    def test_alerts_are_persistent_filtered_and_paginated(self) -> None:
+        first_alert = {
+            "from": "kitchen",
+            "to": "bedroom",
+            "cause": "multi_person_probable",
+            "gap_seconds": 3,
+        }
+        second_alert = {
+            "from": "bedroom",
+            "to": "foyer",
+            "cause": "sensor_or_data_error",
+            "gap_seconds": 1,
+        }
+        self.store.insert_many(
+            [
+                record(),
+                record(
+                    "binary_sensor.kitchen_motion_2",
+                    event_timestamp="2026-06-07T11:00:00Z",
+                    layout_alert=first_alert,
+                ),
+                record(
+                    "binary_sensor.bedroom_occupancy",
+                    room="bedroom",
+                    sensor_type="occupancy",
+                    event_timestamp="2026-06-07T12:00:00Z",
+                    layout_alert=second_alert,
+                ),
+            ]
+        )
+
+        first_page = self.store.query_alerts(page=1, page_size=1)
+        filtered = self.store.query_alerts(
+            sensor_type="motion",
+            room="kitchen",
+            page=1,
+            page_size=25,
+        )
+        reopened = HistoryStore(self.path)
+        reopened.initialize()
+
+        self.assertEqual(first_page["total"], 2)
+        self.assertEqual(first_page["pages"], 2)
+        self.assertEqual(
+            first_page["items"][0]["layout_alert"]["cause"],
+            "sensor_or_data_error",
+        )
+        self.assertEqual(filtered["total"], 1)
+        self.assertEqual(filtered["items"][0]["layout_alert"], first_alert)
+        self.assertEqual(reopened.query_alerts()["total"], 2)
+
+    def test_migrates_version_one_database_with_alert_index(self) -> None:
+        with self.store._connection() as connection:
+            connection.execute("DROP INDEX idx_presence_events_alert_timestamp")
+            connection.execute("PRAGMA user_version=1")
+            connection.commit()
+
+        self.store.initialize()
+
+        with self.store._connection() as connection:
+            version = connection.execute("PRAGMA user_version").fetchone()[0]
+            index = connection.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='index' AND name='idx_presence_events_alert_timestamp'"
+            ).fetchone()
+        self.assertEqual(version, 2)
+        self.assertIsNotNone(index)
 
 
 class HistoryStoreAsyncTest(unittest.IsolatedAsyncioTestCase):

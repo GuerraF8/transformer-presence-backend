@@ -263,6 +263,49 @@ export function createHistoryController({
     el.historyNewEventsBtn.hidden = !state.history.newEvents;
   }
 
+  function renderAlerts() {
+    const alerts = state.history.alerts;
+    el.alertList.innerHTML = "";
+    if (!alerts.items.length) {
+      const row = documentRef.createElement("tr");
+      const cell = documentRef.createElement("td");
+      cell.colSpan = 5;
+      cell.textContent = hasActiveHistoryFilters(state.history.filters)
+        ? "No hay alertas para los filtros seleccionados"
+        : "Sin alertas no adyacentes registradas";
+      row.appendChild(cell);
+      el.alertList.appendChild(row);
+    }
+    alerts.items.forEach((event) => {
+      const alert = event.layout_alert || {};
+      const row = documentRef.createElement("tr");
+      appendCell(
+        row,
+        `${roomLabel(alert.from)} -> ${roomLabel(alert.to)}`,
+      );
+      appendCell(row, formatTime(event.event_timestamp));
+      appendBadgeCell(
+        row,
+        String(alert.cause || "no_adyacente"),
+        "alert",
+      );
+      appendCell(row, String(event.estimated_people || 0));
+      appendCell(row, `${Number(alert.gap_seconds || 0)}s`);
+      el.alertList.appendChild(row);
+    });
+    el.alertPageStatus.textContent =
+      "Página " +
+      alerts.page +
+      " de " +
+      alerts.pages +
+      " · " +
+      formatInteger(alerts.total) +
+      (alerts.total === 1 ? " alerta" : " alertas");
+    el.alertPrevBtn.disabled = alerts.page <= 1;
+    el.alertNextBtn.disabled = alerts.page >= alerts.pages;
+    el.alertNewEventsBtn.hidden = !alerts.newAlerts;
+  }
+
   function svgElement(name, attributes) {
     const node = documentRef.createElementNS(SVG_NS, name);
     Object.entries(attributes || {}).forEach(([key, value]) => {
@@ -396,6 +439,7 @@ export function createHistoryController({
   function render() {
     renderOptions();
     renderEvents();
+    renderAlerts();
     renderChart();
   }
 
@@ -407,31 +451,60 @@ export function createHistoryController({
     return state.history.config;
   }
 
-  async function fetchHistory() {
+  async function fetchHistory({
+    includeEvents = true,
+    includePresence = true,
+    includeAlerts = true,
+  } = {}) {
     const params = buildHistorySearchParams(state.history.filters);
     params.set("page", String(state.history.page));
     params.set("page_size", String(state.history.pageSize));
+    const alertParams = buildHistorySearchParams(state.history.filters);
+    alertParams.set("page", String(state.history.alerts.page));
+    alertParams.set("page_size", String(state.history.alerts.pageSize));
     const presenceParams = buildHistorySearchParams(state.history.filters);
     presenceParams.set("max_points", "1000");
-    const [eventsResult, presenceResult] = await Promise.all([
-      fetchJson("/api/history/events?" + params, { cache: "no-store" }),
-      fetchJson("/api/history/presence?" + presenceParams, {
-        cache: "no-store",
-      }),
+    const [eventsResult, presenceResult, alertsResult] = await Promise.all([
+      includeEvents
+        ? fetchJson("/api/history/events?" + params, { cache: "no-store" })
+        : null,
+      includePresence
+        ? fetchJson("/api/history/presence?" + presenceParams, {
+            cache: "no-store",
+          })
+        : null,
+      includeAlerts
+        ? fetchJson("/api/history/alerts?" + alertParams, {
+            cache: "no-store",
+          })
+        : null,
     ]);
-    state.history.items = Array.isArray(eventsResult.items)
-      ? eventsResult.items
-      : [];
-    state.history.total = Number(eventsResult.total || 0);
-    state.history.page = Number(eventsResult.page || 1);
-    state.history.pages = Number(eventsResult.pages || 1);
-    state.history.options = eventsResult.options || state.history.options;
-    state.history.points = Array.isArray(presenceResult.points)
-      ? presenceResult.points
-      : [];
-    state.history.sourceEvents = Number(presenceResult.source_events || 0);
-    state.history.truncated = !!presenceResult.truncated;
-    state.history.newEvents = false;
+    if (eventsResult) {
+      state.history.items = Array.isArray(eventsResult.items)
+        ? eventsResult.items
+        : [];
+      state.history.total = Number(eventsResult.total || 0);
+      state.history.page = Number(eventsResult.page || 1);
+      state.history.pages = Number(eventsResult.pages || 1);
+      state.history.options = eventsResult.options || state.history.options;
+      state.history.newEvents = false;
+    }
+    if (presenceResult) {
+      state.history.points = Array.isArray(presenceResult.points)
+        ? presenceResult.points
+        : [];
+      state.history.sourceEvents = Number(presenceResult.source_events || 0);
+      state.history.truncated = !!presenceResult.truncated;
+    }
+    if (alertsResult) {
+      state.history.alerts.items = Array.isArray(alertsResult.items)
+        ? alertsResult.items
+        : [];
+      state.history.alerts.total = Number(alertsResult.total || 0);
+      state.history.alerts.page = Number(alertsResult.page || 1);
+      state.history.alerts.pages = Number(alertsResult.pages || 1);
+      state.history.alerts.newAlerts = false;
+    }
     render();
   }
 
@@ -539,6 +612,7 @@ export function createHistoryController({
       filtersFromControls(),
     );
     state.history.page = 1;
+    state.history.alerts.page = 1;
     fetchHistory().catch((error) =>
       setMiniStatus(
         el.historyChartStatus,
@@ -555,6 +629,7 @@ export function createHistoryController({
     );
     renderFilterControls();
     state.history.page = 1;
+    state.history.alerts.page = 1;
     fetchHistory().catch((error) =>
       setMiniStatus(
         el.historyChartStatus,
@@ -574,10 +649,19 @@ export function createHistoryController({
     }, 350);
   }
 
-  function scheduleRefresh() {
-    if (state.history.page !== 1) {
+  function scheduleRefresh(event = null) {
+    const refreshEvents = state.history.page === 1;
+    const isAlert = !!event?.layout_alert;
+    const refreshAlerts = isAlert && state.history.alerts.page === 1;
+    if (!refreshEvents) {
       state.history.newEvents = true;
       el.historyNewEventsBtn.hidden = false;
+    }
+    if (isAlert && !refreshAlerts) {
+      state.history.alerts.newAlerts = true;
+      el.alertNewEventsBtn.hidden = false;
+    }
+    if (!refreshEvents && !refreshAlerts) {
       return;
     }
     if (state.history.refreshTimer) {
@@ -585,7 +669,14 @@ export function createHistoryController({
     }
     state.history.refreshTimer = windowRef.setTimeout(() => {
       state.history.refreshTimer = null;
-      Promise.all([fetchHistory(), fetchConfig()]).catch(() => {});
+      Promise.all([
+        fetchHistory({
+          includeEvents: refreshEvents,
+          includePresence: refreshEvents,
+          includeAlerts: refreshAlerts,
+        }),
+        fetchConfig(),
+      ]).catch(() => {});
     }, 500);
   }
 
@@ -615,7 +706,10 @@ export function createHistoryController({
     el.historyPrevBtn.addEventListener("click", () => {
       if (state.history.page <= 1) return;
       state.history.page -= 1;
-      fetchHistory().catch((error) =>
+      fetchHistory({
+        includePresence: false,
+        includeAlerts: false,
+      }).catch((error) =>
         setMiniStatus(
           el.historyChartStatus,
           String(error.message || error),
@@ -626,7 +720,10 @@ export function createHistoryController({
     el.historyNextBtn.addEventListener("click", () => {
       if (state.history.page >= state.history.pages) return;
       state.history.page += 1;
-      fetchHistory().catch((error) =>
+      fetchHistory({
+        includePresence: false,
+        includeAlerts: false,
+      }).catch((error) =>
         setMiniStatus(
           el.historyChartStatus,
           String(error.message || error),
@@ -636,7 +733,48 @@ export function createHistoryController({
     });
     el.historyNewEventsBtn.addEventListener("click", () => {
       state.history.page = 1;
-      fetchHistory().catch((error) =>
+      fetchHistory({ includeAlerts: false }).catch((error) =>
+        setMiniStatus(
+          el.historyChartStatus,
+          String(error.message || error),
+          true,
+        ),
+      );
+    });
+    el.alertPrevBtn.addEventListener("click", () => {
+      if (state.history.alerts.page <= 1) return;
+      state.history.alerts.page -= 1;
+      fetchHistory({
+        includeEvents: false,
+        includePresence: false,
+      }).catch((error) =>
+        setMiniStatus(
+          el.historyChartStatus,
+          String(error.message || error),
+          true,
+        ),
+      );
+    });
+    el.alertNextBtn.addEventListener("click", () => {
+      if (state.history.alerts.page >= state.history.alerts.pages) return;
+      state.history.alerts.page += 1;
+      fetchHistory({
+        includeEvents: false,
+        includePresence: false,
+      }).catch((error) =>
+        setMiniStatus(
+          el.historyChartStatus,
+          String(error.message || error),
+          true,
+        ),
+      );
+    });
+    el.alertNewEventsBtn.addEventListener("click", () => {
+      state.history.alerts.page = 1;
+      fetchHistory({
+        includeEvents: false,
+        includePresence: false,
+      }).catch((error) =>
         setMiniStatus(
           el.historyChartStatus,
           String(error.message || error),
@@ -650,6 +788,7 @@ export function createHistoryController({
         state.history.filters = parseHistoryFilters(event.newValue);
         renderFilterControls();
         state.history.page = 1;
+        state.history.alerts.page = 1;
         fetchHistory().catch((error) =>
           setMiniStatus(
             el.historyChartStatus,

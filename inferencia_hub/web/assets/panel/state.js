@@ -59,6 +59,14 @@ export function createPanelState() {
       sourceEvents: 0,
       truncated: false,
       newEvents: false,
+      alerts: {
+        items: [],
+        total: 0,
+        page: 1,
+        pages: 1,
+        pageSize: 25,
+        newAlerts: false,
+      },
       refreshTimer: null,
       filters: {
         query: "",

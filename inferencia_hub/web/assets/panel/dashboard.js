@@ -1,9 +1,9 @@
 import { fetchJson } from "./api.js";
-import { formatTime, roomLabel, toMs, toPercent } from "./format.js";
+import { roomLabel, toMs, toPercent } from "./format.js";
 import { adjacencyToEdges, drawMap } from "./map.js";
 import { numberFromSelect } from "./replay-training.js";
 import { collectRooms } from "./rooms.js";
-import { appendBadgeCell, appendCell, setMiniStatus } from "./ui.js";
+import { setMiniStatus } from "./ui.js";
 
 function selectOption(select, value) {
   const stringValue = String(value);
@@ -104,40 +104,6 @@ export function createDashboardController({
     el.layoutMeta.textContent = `version ${state.reference.version || 0}`;
   }
 
-  function renderAlerts() {
-    const recent = [
-      ...(state.metrics?.non_adjacent?.recent || []),
-    ].reverse();
-    el.alertList.innerHTML = "";
-    if (!recent.length) {
-      const row = documentRef.createElement("tr");
-      const cell = documentRef.createElement("td");
-      cell.colSpan = 5;
-      cell.textContent = "Sin alertas no adyacentes registradas";
-      row.appendChild(cell);
-      el.alertList.appendChild(row);
-      return;
-    }
-    recent.slice(0, 40).forEach((alert) => {
-      const row = documentRef.createElement("tr");
-      appendCell(
-        row,
-        `${roomLabel(alert.from)} -> ${roomLabel(alert.to)}`,
-        documentRef,
-      );
-      appendCell(row, formatTime(alert.timestamp), documentRef);
-      appendBadgeCell(
-        row,
-        String(alert.cause || "-"),
-        "alert",
-        documentRef,
-      );
-      appendCell(row, String(alert.estimated_people || 0), documentRef);
-      appendCell(row, `${alert.gap_seconds || 0}s`, documentRef);
-      el.alertList.appendChild(row);
-    });
-  }
-
   function renderLayout() {
     if (!state.layoutTextDirty && state.reference.adjacency_text) {
       el.layoutText.value = state.reference.adjacency_text;
@@ -149,7 +115,6 @@ export function createDashboardController({
     renderMetrics();
     renderPresenceFilter();
     renderMaps();
-    renderAlerts();
     renderLayout();
   }
 

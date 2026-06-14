@@ -7,6 +7,7 @@ from .common import HandlerMap, endpoint
 PATHS = {
     "/api/history/config",
     "/api/history/events",
+    "/api/history/alerts",
     "/api/history/presence",
     "/api/history/purge",
 }
@@ -31,6 +32,12 @@ def build_router(handlers: HandlerMap) -> APIRouter:
         endpoint(handlers, "get_history_events"),
         methods=["GET"],
         summary="Consultar eventos historicos",
+    )
+    router.add_api_route(
+        "/api/history/alerts",
+        endpoint(handlers, "get_history_alerts"),
+        methods=["GET"],
+        summary="Consultar alertas no adyacentes historicas",
     )
     router.add_api_route(
         "/api/history/presence",

@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 VALID_MODES = {"listen", "replay", "simulator"}
 
 
@@ -127,7 +127,19 @@ class HistoryStore:
                         ON presence_events(stored_at);
                     """
                 )
-                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+                version = 1
+
+            if version < 2:
+                connection.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_presence_events_alert_timestamp
+                    ON presence_events(event_timestamp DESC, id DESC)
+                    WHERE layout_alert_json IS NOT NULL
+                    """
+                )
+                version = 2
+
+            connection.execute(f"PRAGMA user_version={version}")
 
             connection.execute(
                 """
@@ -494,6 +506,58 @@ class HistoryStore:
                 "rooms": [row["room"] for row in rooms],
                 "input_modes": [row["input_mode"] for row in modes],
             },
+        }
+
+    def query_alerts(
+        self,
+        *,
+        query: str = "",
+        sensor_type: str = "",
+        room: str = "",
+        input_mode: str = "",
+        from_ts: str = "",
+        to_ts: str = "",
+        page: int = 1,
+        page_size: int = 25,
+    ) -> dict[str, Any]:
+        page = max(1, int(page))
+        page_size = max(1, min(int(page_size), 200))
+        where, params = self._filters(
+            query=query,
+            sensor_type=sensor_type,
+            room=room,
+            input_mode=input_mode,
+            from_ts=from_ts,
+            to_ts=to_ts,
+        )
+        alert_where = (
+            f"{where} AND layout_alert_json IS NOT NULL"
+            if where
+            else " WHERE layout_alert_json IS NOT NULL"
+        )
+        with self._connection() as connection:
+            total = int(
+                connection.execute(
+                    f"SELECT COUNT(*) FROM presence_events{alert_where}",
+                    params,
+                ).fetchone()[0]
+            )
+            pages = max(1, (total + page_size - 1) // page_size)
+            page = min(page, pages)
+            rows = connection.execute(
+                f"""
+                SELECT * FROM presence_events{alert_where}
+                ORDER BY event_timestamp DESC, id DESC
+                LIMIT ? OFFSET ?
+                """,
+                [*params, page_size, (page - 1) * page_size],
+            ).fetchall()
+        return {
+            "items": [self._row_to_event(row) for row in rows],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": pages,
         }
 
     def query_presence(

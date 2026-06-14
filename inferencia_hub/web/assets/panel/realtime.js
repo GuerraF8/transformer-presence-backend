@@ -1,4 +1,4 @@
-import { fetchJson } from "./api.js";
+import { fetchJson, resolveBackendWebSocketUrl } from "./api.js";
 import { edgeKey } from "./format.js";
 
 export function applySnapshotState(state, simData) {
@@ -125,7 +125,7 @@ export function createRealtimeController({
     applyEventState(state, event);
     if (event.ai_mode) el.modelState.textContent = String(event.ai_mode);
     renderAll();
-    scheduleHistoryRefresh();
+    scheduleHistoryRefresh(event);
   }
 
   async function fetchSnapshot() {
@@ -136,10 +136,8 @@ export function createRealtimeController({
   }
 
   function connect() {
-    const protocol =
-      windowRef.location.protocol === "https:" ? "wss" : "ws";
     state.ws = new WebSocketClass(
-      `${protocol}://${windowRef.location.host}/presencia`,
+      resolveBackendWebSocketUrl("presencia", windowRef.document.baseURI),
     );
     state.ws.onopen = () => {
       el.wsState.textContent = "conectado";

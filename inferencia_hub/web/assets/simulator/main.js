@@ -81,25 +81,6 @@ function collectTemplateRooms(template) {
   return [...roomBag].filter(Boolean).sort();
 }
 
-async function legacyFetchJson(url, options) {
-  const response = await fetch(url, options || {});
-  const raw = await response.text();
-  let data = null;
-
-  try {
-    data = raw ? JSON.parse(raw) : null;
-  } catch (_err) {
-    data = null;
-  }
-
-  if (!response.ok) {
-    const detail = data && data.detail ? String(data.detail) : (raw || (response.status + " " + response.statusText));
-    throw new Error(detail);
-  }
-
-  return data;
-}
-
 async function setInputMode(mode) {
   const payload = await fetchJson("/api/input_mode", {
     method: "POST",

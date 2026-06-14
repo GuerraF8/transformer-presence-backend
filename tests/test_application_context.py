@@ -31,12 +31,13 @@ class ApplicationContextTest(unittest.TestCase):
             "/api/events",
             "/api/sim_data",
             "/api/history/events",
+            "/api/history/alerts",
             "/api/ha_entities",
             "/api/train_model",
             "/api/replay_csv",
             "/presencia",
         }
-        self.assertEqual(app.version, "0.3.1")
+        self.assertEqual(app.version, "0.4.0")
         self.assertIs(create_app(), app)
         self.assertTrue(expected.issubset(paths))
         self.assertIs(app.state.context.hub, app.state.context.hub)

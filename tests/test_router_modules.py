@@ -17,5 +17,6 @@ class RouterModuleTest(unittest.TestCase):
 
         self.assertIn("/api/events", declared)
         self.assertIn("/api/history/events", declared)
+        self.assertIn("/api/history/alerts", declared)
         self.assertIn("/api/ha_entities", declared)
         self.assertIn("/api/replay_status", declared)

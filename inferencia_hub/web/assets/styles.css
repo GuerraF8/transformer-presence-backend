@@ -375,7 +375,9 @@ h3 {
 }
 
 .events-workspace {
-  grid-template-rows: auto auto 190px minmax(150px, 1fr) auto minmax(100px, 0.45fr);
+  grid-template-rows:
+    auto auto 190px minmax(150px, 1fr) auto auto
+    minmax(120px, 0.45fr) auto;
 }
 
 .left-workspace .events-workspace {
@@ -1277,7 +1279,20 @@ kbd {
 
 .alerts-table-wrap {
   min-height: 0;
-  max-height: none;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.alerts-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.alerts-heading h3 {
+  margin: 0;
+  font-size: 0.9rem;
 }
 
 .data-table {
