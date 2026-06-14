@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Inferencia Presencia | Home Assistant</title>
-  <link rel="stylesheet" href="assets/styles.css" />
+  <link rel="stylesheet" href="assets/styles.css?v=0.5.0" />
 </head>
 <body>
   <div class="ha-app">
@@ -76,7 +76,7 @@
             <header class="surface-head">
               <div>
                 <h2 id="configDialogTitle">Configuración</h2>
-                <p>Controles organizados para operación y replay.</p>
+                <p>Configura el perfil de la vivienda, los sensores que participan en la inferencia, el historial y las herramientas de entrenamiento.</p>
               </div>
               <button id="configCloseBtn" type="button" class="secondary" aria-label="Cerrar configuración">
                 Cerrar
@@ -99,7 +99,7 @@
                 <section id="profileOnboarding" class="sensor-config-section" aria-labelledby="profileOnboardingTitle">
                   <div class="sensor-config-heading">
                     <h3 id="profileOnboardingTitle">Comenzar configuración</h3>
-                    <p class="hint">Copia el preset actual, crea un perfil vacío o detecta áreas y entidades de Home Assistant.</p>
+                    <p class="hint">Crea la estructura de la vivienda desde el mapa de ejemplo, desde cero o usando las áreas registradas en Home Assistant.</p>
                   </div>
                   <div class="profile-create-actions">
                     <button type="button" class="secondary" data-profile-create="real_home">Partir desde real_home</button>
@@ -111,7 +111,7 @@
                 <section class="sensor-config-section" aria-labelledby="profileManagerTitle">
                   <div class="sensor-config-heading">
                     <h3 id="profileManagerTitle">1. Perfil</h3>
-                    <p class="hint">Los cambios se conservan como borrador hasta guardarlos.</p>
+                    <p class="hint">Cada perfil define una vivienda independiente; el perfil activo determina qué habitaciones, sensores y conexiones utiliza la inferencia.</p>
                   </div>
                   <div class="profile-manager-grid">
                     <label>
@@ -139,7 +139,7 @@
                   <section class="sensor-config-section" aria-labelledby="profileRoomsTitle">
                     <div class="sensor-config-heading">
                       <h3 id="profileRoomsTitle">2. Habitaciones y áreas</h3>
-                      <p class="hint">El slug es estable; el nombre visible puede seguir los renombres de Home Assistant.</p>
+                      <p class="hint">Convierte áreas de Home Assistant en habitaciones del mapa o agrega espacios manuales que no tengan un área asociada.</p>
                     </div>
                     <fieldset class="profile-area-fieldset">
                       <legend>Áreas detectadas</legend>
@@ -157,7 +157,7 @@
                         <caption class="sr-only">Habitaciones configuradas en el perfil</caption>
                         <thead>
                           <tr>
-                            <th scope="col">Slug</th>
+                            <th scope="col">Identificador</th>
                             <th scope="col">Nombre visible</th>
                             <th scope="col">Área</th>
                             <th scope="col">Acción</th>
@@ -171,7 +171,7 @@
                   <section class="sensor-config-section" aria-labelledby="profileEdgesTitle">
                     <div class="sensor-config-heading">
                       <h3 id="profileEdgesTitle">4. Conexiones</h3>
-                      <p class="hint">Define la adyacencia o acepta propuestas calculadas desde el historial.</p>
+                      <p class="hint">Indica entre qué habitaciones puede ocurrir un desplazamiento directo. Estas conexiones permiten detectar transiciones no adyacentes.</p>
                     </div>
                     <div class="profile-edge-grid">
                       <label>Origen <select id="profileEdgeFrom"></select></label>
@@ -197,9 +197,9 @@
                   <section class="sensor-config-section" aria-labelledby="profilePreviewTitle">
                     <div class="sensor-config-heading">
                       <h3 id="profilePreviewTitle">5. Vista previa</h3>
-                      <p class="hint">Los mapas Real y Vivo usarán este layout al activar el perfil.</p>
+                      <p class="hint">Comprueba la distribución final del mapa: cada nodo representa una habitación y cada línea una conexión permitida.</p>
                     </div>
-                    <svg id="profileMapPreview" class="profile-map-preview" viewBox="0 0 640 300" role="img" aria-label="Vista previa del mapa del perfil"></svg>
+                    <svg id="profileMapPreview" class="profile-map-preview" viewBox="0 0 760 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Vista previa completa del mapa del perfil"></svg>
                   </section>
                 </div>
               </div>
@@ -208,6 +208,7 @@
             <details class="settings-card" open>
               <summary>WebSocket</summary>
               <div class="settings-grid">
+                <p class="hint">Mantiene la actualización en tiempo real del mapa y permite volver al procesamiento de sensores reales después de una simulación.</p>
                 <div class="setting-row">
                   <span>Modo operativo</span>
                   <div class="segmented">
@@ -222,6 +223,7 @@
             <details class="settings-card" open>
               <summary>Historial</summary>
               <div class="settings-grid">
+                <p class="hint">Almacena los eventos procesados para consultar cambios de presencia, revisar alertas y analizar el comportamiento de los sensores.</p>
                 <div class="history-config-grid">
                   <label>
                     Persistencia
@@ -274,6 +276,7 @@
             <details class="settings-card" open>
               <summary>Sensores Home Assistant</summary>
               <div class="settings-grid">
+                <p class="hint">Sincroniza áreas y entidades de Home Assistant, permite crear recursos de prueba aislados y muestra el estado de comunicación con la integración.</p>
                 <div class="setting-row">
                   <span>Catálogo escaneado</span>
                   <strong id="haSensorSummary">sin datos</strong>
@@ -350,7 +353,7 @@
                     <div class="sensor-config-heading">
                       <div>
                         <h3 id="sensorSelectionTitle">3. Seleccionar entidades</h3>
-                        <p class="hint">Puedes usar cualquier dominio. Las entidades nuevas de un área no se seleccionan automáticamente.</p>
+                        <p class="hint">Elige las entidades que aportarán señales al modelo, asígnalas a una habitación e indica si representan movimiento, apertura u ocupación.</p>
                       </div>
                     </div>
                     <div class="sensor-search-grid">
@@ -398,6 +401,7 @@
             <details class="settings-card" open>
               <summary>Filtro mascotas</summary>
               <div class="settings-grid">
+                <p class="hint">Agrupa activaciones de movimiento cercanas en el tiempo para reducir inferencias causadas por eventos aislados o desplazamientos de mascotas.</p>
                 <div class="setting-row">
                   <span>Sliding window</span>
                   <select id="petFilterEnabled">
@@ -440,6 +444,7 @@
 
             <details class="settings-card">
               <summary>Modelo</summary>
+              <p class="hint settings-card-description">Muestra la calidad de las conexiones inferidas y permite entrenar el modelo con datos históricos o secuencias simuladas.</p>
               <div class="metrics">
                 <div class="metric"><small>precision</small><b id="mapPrecision">0.0%</b></div>
                 <div class="metric"><small>recall</small><b id="mapRecall">0.0%</b></div>
@@ -484,7 +489,7 @@
                 </div>
                 <div class="training-grid">
                   <label>
-                    Escenarios
+                    Secuencias generadas
                     <select id="trainScenariosInput">
                       <option value="120">120</option>
                       <option value="240" selected>240</option>
@@ -548,29 +553,6 @@
                   <a id="simulatedCsvLink" href="#" download>Descargar CSV</a>
                 </div>
                 <div id="trainStatus" class="mini" role="status" aria-live="polite"></div>
-              </div>
-            </details>
-
-            <details class="settings-card" data-dev-only hidden>
-              <summary>Escenarios</summary>
-              <div class="settings-grid">
-                <label>
-                  Plantilla escenario
-                  <select id="scenarioTemplate"></select>
-                </label>
-                <div id="templateHint" class="mini"></div>
-                <label class="switch-control">
-                  <input id="useScenarioLayout" type="checkbox" />
-                  <span>Usar plantilla del mapa real para interpolar trayectorias</span>
-                </label>
-                <details class="advanced-settings">
-                  <summary>Editor avanzado de adyacencia</summary>
-                  <p class="hint">Solo para ajustes manuales del mapa real.</p>
-                  <textarea id="layoutText" spellcheck="false" aria-label="Adyacencia real"></textarea>
-                  <button id="layoutApplyBtn" type="button" class="secondary">Aplicar mapa real</button>
-                  <div id="layoutStatus" class="mini" role="status" aria-live="polite"></div>
-                  <span id="layoutMeta" class="sr-only">editable</span>
-                </details>
               </div>
             </details>
 

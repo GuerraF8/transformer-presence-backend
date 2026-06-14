@@ -584,6 +584,11 @@ label {
   padding: 12px;
 }
 
+.settings-card-description {
+  margin: 0;
+  padding: 12px 12px 0;
+}
+
 .history-config-grid,
 .history-purge {
   display: grid;
@@ -901,11 +906,13 @@ label {
 
 .profile-map-preview {
   width: calc(100% - 24px);
-  min-height: 250px;
+  height: clamp(300px, 38vw, 420px);
+  min-height: 300px;
   margin: 0 12px 12px;
   border: 1px solid var(--ha-border-soft);
   border-radius: 8px;
   background: var(--ha-panel);
+  overflow: visible;
 }
 
 .profile-map-edge {
@@ -922,6 +929,7 @@ label {
 .profile-map-label {
   fill: var(--ha-text);
   font-size: 12px;
+  pointer-events: none;
 }
 
 .profile-warning {

@@ -53,6 +53,7 @@ import {
   removeProfileRoom,
   setProfileEntity,
 } from "../panel/profile-mutations.js";
+import { previewLabelLines } from "../panel/profile-preview.js";
 
 test("format helpers preserve panel output contracts", () => {
   assert.equal(toPercent(0.125), "12.5%");
@@ -67,14 +68,20 @@ test("replay payload uses current controls", () => {
     speedInput: { value: "25" },
     debounceInput: { value: "2" },
     maxEventsInput: { value: "100" },
-    useScenarioLayout: { checked: true },
-    scenarioTemplate: { value: "anillo" },
     stepSecondsInput: { value: "4" },
   });
   assert.equal(payload.csv_path, "/data/history.csv");
   assert.equal(payload.speed_events_per_second, 25);
-  assert.equal(payload.use_scenario_layout, true);
-  assert.equal(payload.template, "anillo");
+  assert.equal(payload.use_scenario_layout, false);
+  assert.equal(payload.template, "real_home");
+});
+
+test("profile preview wraps long room labels inside the canvas", () => {
+  assert.deepEqual(
+    previewLabelLines("Sala de entretenimiento principal"),
+    ["Sala de", "entretenimiento"],
+  );
+  assert.deepEqual(previewLabelLines("Cocina"), ["Cocina"]);
 });
 
 test("simulator state is isolated per instance", () => {

@@ -135,13 +135,6 @@ export function createDashboardController({
     el.inferredMapMeta.textContent =
       `${inferredEdges.length} aristas | personas ` +
       `${state.metrics?.people?.current_estimate || 0} | presencia ${presence}`;
-    el.layoutMeta.textContent = `version ${state.reference.version || 0}`;
-  }
-
-  function renderLayout() {
-    if (!state.layoutTextDirty && state.reference.adjacency_text) {
-      el.layoutText.value = state.reference.adjacency_text;
-    }
   }
 
   function render() {
@@ -149,7 +142,6 @@ export function createDashboardController({
     renderMetrics();
     renderPresenceFilter();
     renderMaps();
-    renderLayout();
   }
 
   function setMapTab(tab) {
@@ -213,31 +205,6 @@ export function createDashboardController({
     renderAll();
   }
 
-  async function applyReferenceLayout() {
-    try {
-      const response = await fetchJson("/api/layout_reference", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          adjacency_text: el.layoutText.value,
-          rooms: collectRooms(state),
-        }),
-      });
-      if (response?.layout_reference) {
-        state.reference = {
-          ...state.reference,
-          ...response.layout_reference,
-        };
-      }
-      if (response?.metrics) state.metrics = response.metrics;
-      state.layoutTextDirty = false;
-      setMiniStatus(el.layoutStatus, "mapa real actualizado", false);
-      renderAll();
-    } catch (error) {
-      setMiniStatus(el.layoutStatus, String(error.message || error), true);
-    }
-  }
-
   function registerActions() {
     el.petFilterApplyBtn.addEventListener("click", applyPresenceFilter);
     for (const select of [
@@ -248,10 +215,6 @@ export function createDashboardController({
     ]) {
       select.addEventListener("change", updatePresenceFilterDraft);
     }
-    el.layoutApplyBtn.addEventListener("click", applyReferenceLayout);
-    el.layoutText.addEventListener("input", () => {
-      state.layoutTextDirty = true;
-    });
     el.mapTabFixed.addEventListener("click", () => setMapTab("fixed"));
     el.mapTabLive.addEventListener("click", () => setMapTab("live"));
   }

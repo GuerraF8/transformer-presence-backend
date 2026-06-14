@@ -147,20 +147,13 @@ async function init() {
     ),
   );
   await load(dashboard.fetchEvaluationMetrics, (error) =>
-    setMiniStatus(
-      el.layoutStatus,
-      `metricas: ${String(error.message || error)}`,
+    setTopStatus(
+      el.topStatus,
+      `métricas: ${String(error.message || error)}`,
       true,
     ),
   );
   await load(replayTraining.fetchReplayStatus, () => {});
-  await load(replayTraining.fetchScenarioTemplates, (error) =>
-    setMiniStatus(
-      el.replayStatus,
-      `plantillas: ${String(error.message || error)}`,
-      true,
-    ),
-  );
   await load(
     () => Promise.all([history.fetchConfig(), history.fetch()]),
     (error) =>

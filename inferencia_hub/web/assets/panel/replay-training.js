@@ -6,8 +6,6 @@ import {
   toPercent,
   trainingStateLabel,
 } from "./format.js";
-import { adjacencyToText } from "./map.js";
-import { collectRooms } from "./rooms.js";
 
 export function numberFromSelect(select, fallback) {
   const value = Number(select?.value);
@@ -20,7 +18,6 @@ export function createReplayTrainingController({
   setMiniStatus,
   renderAll,
   refreshSnapshot,
-  documentRef = document,
   windowRef = window,
 }) {
   function renderTraining() {
@@ -152,80 +149,6 @@ export function createReplayTrainingController({
       await fetchReplayStatus();
     } catch (error) {
       setMiniStatus(el.modeStatus, String(error.message || error), true);
-    }
-  }
-
-  function updateTemplateHint() {
-    const template = state.scenarioTemplates[el.scenarioTemplate.value];
-    el.templateHint.textContent = template
-      ? `${template.description || "template"} | ${template.edges?.length || 0} aristas`
-      : "sin metadata";
-  }
-
-  function populateTemplates(templates) {
-    state.scenarioTemplates = templates || {};
-    const keys = Object.keys(state.scenarioTemplates);
-    const ordered = keys.includes("real_home")
-      ? ["real_home", ...keys.filter((key) => key !== "real_home")]
-      : keys;
-    const previous = el.scenarioTemplate.value;
-    el.scenarioTemplate.innerHTML = "";
-    for (const key of ordered.length ? ordered : ["real_home"]) {
-      const option = documentRef.createElement("option");
-      option.value = key;
-      option.textContent = key;
-      el.scenarioTemplate.appendChild(option);
-    }
-    el.scenarioTemplate.value = ordered.includes(previous)
-      ? previous
-      : ordered.includes("real_home")
-        ? "real_home"
-        : el.scenarioTemplate.value;
-    updateTemplateHint();
-  }
-
-  async function fetchScenarioTemplates() {
-    const payload = await fetchJson("/api/scenario_templates", {
-      cache: "no-store",
-    });
-    populateTemplates(payload?.templates || {});
-  }
-
-  async function applyScenarioTemplate() {
-    if (state.applyingTemplate) return;
-    const key = el.scenarioTemplate.value || "real_home";
-    const template = state.scenarioTemplates[key];
-    if (!template?.adjacency) {
-      updateTemplateHint();
-      return;
-    }
-    try {
-      state.applyingTemplate = true;
-      el.layoutText.value = adjacencyToText(template.adjacency);
-      state.layoutTextDirty = true;
-      const response = await fetchJson("/api/layout_reference", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          adjacency: template.adjacency,
-          rooms: collectRooms(state),
-        }),
-      });
-      if (response?.layout_reference) {
-        state.reference = {
-          ...state.reference,
-          ...response.layout_reference,
-        };
-      }
-      if (response?.metrics) state.metrics = response.metrics;
-      state.layoutTextDirty = false;
-      updateTemplateHint();
-      setMiniStatus(el.layoutStatus, `plantilla aplicada: ${key}`, false);
-      renderAll();
-    } catch (error) {
-      setMiniStatus(el.layoutStatus, String(error.message || error), true);
-    } finally {
-      state.applyingTemplate = false;
     }
   }
 
@@ -388,13 +311,11 @@ export function createReplayTrainingController({
       trainPresence(true),
     );
     el.trainHistoricalBtn.addEventListener("click", trainHistorical);
-    el.scenarioTemplate.addEventListener("change", applyScenarioTemplate);
   }
 
   return {
     fetchModelInfo,
     fetchReplayStatus,
-    fetchScenarioTemplates,
     registerActions,
     render,
   };
