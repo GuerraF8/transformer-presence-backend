@@ -192,6 +192,20 @@ class HAEntityInfo(BaseModel):
     source: str = "ha_scan"
     supported: bool = True
     last_changed: str | None = None
+    area_id: str = ""
+    area_name: str = ""
+    area_source: str = ""
+    device_id: str = ""
+    unique_id: str = ""
+    platform: str = ""
+
+
+class HAAreaInfo(BaseModel):
+    area_id: str
+    name: str
+    aliases: list[str] = Field(default_factory=list)
+    floor_id: str | None = None
+    entity_ids: list[str] = Field(default_factory=list)
 
 
 class HAEntityCatalogInput(BaseModel):
@@ -200,11 +214,17 @@ class HAEntityCatalogInput(BaseModel):
     scanned_at: datetime | None = None
     auto_discovery: bool = True
     tracked_entities: list[str] = Field(default_factory=list)
+    areas: list[HAAreaInfo] = Field(default_factory=list)
     entities: list[HAEntityInfo] = Field(default_factory=list)
 
 
 class HAActionRequestInput(BaseModel):
-    action: str = Field(pattern="^(refresh_catalog|create_test_sensors)$")
+    action: str = Field(
+        pattern=(
+            "^(refresh_catalog|create_test_sensors|"
+            "remove_test_sensors|remove_test_resources)$"
+        )
+    )
     entry_id: str | None = None
     rooms: str = "bedroom,kitchen,living"
     include_occupancy: bool = True
@@ -222,6 +242,55 @@ class RealSensorConfigInput(BaseModel):
     rooms: list[str] = Field(default_factory=list)
     assignments: list[RealSensorAssignmentInput] = Field(default_factory=list)
     require_explicit_selection: bool = True
+
+
+class ProfileRoomInput(BaseModel):
+    slug: str
+    name: str
+    area_id: str = ""
+    area_name: str = ""
+    status: Literal["active", "missing"] = "active"
+    warning: str = ""
+
+
+class ProfileAreaInput(BaseModel):
+    area_id: str
+    room_slug: str
+    name: str = ""
+
+
+class ProfileAssignmentInput(BaseModel):
+    entity_id: str
+    room_slug: str
+    enabled: bool = True
+    sensor_type: Literal["motion", "door", "occupancy", "other"] = "other"
+    area_id: str = ""
+    area_name: str = ""
+    status: Literal["active", "missing", "moved"] = "active"
+    warning: str = ""
+    unique_id: str = ""
+    platform: str = ""
+
+
+class ProfileCreateInput(BaseModel):
+    name: str
+    source: Literal["manual", "real_home", "detected"] = "manual"
+    area_ids: list[str] = Field(default_factory=list)
+    entity_ids: list[str] = Field(default_factory=list)
+
+
+class ProfileUpdateInput(BaseModel):
+    revision: int = Field(ge=1)
+    name: str
+    rooms: list[ProfileRoomInput] = Field(default_factory=list)
+    areas: list[ProfileAreaInput] = Field(default_factory=list)
+    assignments: list[ProfileAssignmentInput] = Field(default_factory=list)
+    edges: list[list[str]] = Field(default_factory=list)
+
+
+class ProfileInferLayoutInput(BaseModel):
+    min_support: int = Field(default=2, ge=1, le=1000)
+    max_gap_seconds: int = Field(default=600, ge=1, le=86400)
 
 
 class PresenceFilterConfigInput(BaseModel):

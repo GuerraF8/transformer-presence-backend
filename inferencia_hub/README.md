@@ -9,6 +9,10 @@ Servicio externo para inferencia de presencia + visualizacion en vivo.
 - Inspeccion de modelo activo: `GET /api/model_info`
 - Plantillas de escenarios para replay: `GET /api/scenario_templates`
 - Layout de referencia editable (mapa real): `GET/POST /api/layout_reference`
+- Perfiles editables: `GET/POST /api/profiles`
+- Activacion y propuestas historicas:
+  `POST /api/profiles/{profile_id}/activate` y
+  `POST /api/profiles/{profile_id}/infer-layout`
 - Metricas de evaluacion + trazas recientes: `GET /api/evaluation_metrics`
 - Simulacion desde CSV: `POST /api/replay_csv`
 - Control de replay (start/pause/reset): `POST /api/replay_control`
@@ -36,6 +40,19 @@ Servicio externo para inferencia de presencia + visualizacion en vivo.
 - Estima numero de personas presentes a partir de habitaciones activas y conectividad.
 
 Opcionalmente puede ejecutar una validacion semantica del mapa con Ollama (`qwen2.5:0.5b-instruct` por defecto).
+
+## Perfiles persistentes
+
+La version 0.5.0 guarda perfiles en
+`/app/data/presence_profiles.json` mediante escritura atomica. Un perfil define
+habitaciones, areas de Home Assistant, entidades seleccionadas, categoria de
+sensor y conexiones. Solo existe un perfil activo; sin el, los eventos de
+escucha se ignoran y el snapshot declara la inferencia no disponible.
+
+`real_home` es una plantilla copiable. Los modelos entrenados se separan por
+perfil y se validan con una huella estructural antes de cargarse. Las APIs
+`/api/real_sensor_config` y `/api/layout_reference` siguen disponibles como
+adaptadores para clientes anteriores.
 
 ## Formato de evento de ingesta
 

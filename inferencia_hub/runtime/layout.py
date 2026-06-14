@@ -1,6 +1,7 @@
 """Operaciones de escenarios, mapas de referencia y métricas."""
 
 from .shared import *  # noqa: F401,F403
+from .profiles import _apply_profile
 
 
 def scenario_templates() -> dict[str, Any]:
@@ -39,12 +40,50 @@ async def get_layout_reference() -> dict[str, Any]:
 
 
 async def set_layout_reference(config: LayoutReferenceInput) -> dict[str, Any]:
+    profile = profile_store.active()
+    if profile is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Debe crear y activar un perfil antes de editar el mapa",
+        )
     try:
         result = await hub_state.configure_reference_layout(config)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    await hub_state.broadcast_snapshot()
-    return result
+    layout = result["layout_reference"]
+    existing_rooms = {
+        str(room.get("slug") or ""): dict(room)
+        for room in profile.get("rooms", [])
+        if isinstance(room, dict)
+    }
+    for slug in layout.get("rooms", []):
+        existing_rooms.setdefault(
+            slug,
+            {
+                "slug": slug,
+                "name": str(slug).replace("_", " "),
+                "area_id": "",
+                "area_name": "",
+            },
+        )
+    updated = await asyncio.to_thread(
+        profile_store.update,
+        profile["id"],
+        {
+            **profile,
+            "rooms": list(existing_rooms.values()),
+            "edges": [
+                [edge["a"], edge["b"]]
+                for edge in layout.get("edges", [])
+            ],
+        },
+        expected_revision=int(profile["revision"]),
+    )
+    await _apply_profile(updated)
+    return {
+        **result,
+        "profile": updated,
+    }
 
 
 async def evaluation_metrics(limit: int = 100) -> dict[str, Any]:

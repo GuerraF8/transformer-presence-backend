@@ -68,6 +68,7 @@ class SnapshotMixin:
                 ],
             },
             "rooms": rooms,
+            "profile": self._profile_payload_locked(),
             "events": self.events,
             "final_edges": final_edges,
             "layout_reference": self._layout_payload_locked(),
@@ -105,50 +106,59 @@ class SnapshotMixin:
             },
             "model": {
                 "ready": self.ai_model.ready,
+                "profile_fingerprint": self.active_profile_fingerprint,
+                "compatible": self.active_profile_model_compatible,
                 "training_info": self.ai_model.training_info,
                 "rejected_transitions": self.rejected_transitions,
             },
         }
 
+    def _reset_transient_locked(self) -> None:
+        self.events.clear()
+        self.rooms.clear()
+        self.edge_support.clear()
+        self.last_active_by_room.clear()
+        self.occupancy_confirmed_by_room.clear()
+        self.active_sensor_types_by_room.clear()
+        self.sequence_history.clear()
+        self.last_activation = None
+        self.current_room = None
+        self.current_active_rooms = []
+        self.latest_touched_edge = None
+        self.rejected_transitions = 0
+        self.non_adjacent_records.clear()
+        self.non_adjacent_total = 0
+        self.non_adjacent_multi_person = 0
+        self.non_adjacent_pet_or_noise = 0
+        self.non_adjacent_sensor_error = 0
+        self.current_people_estimate = 0
+        self.max_people_estimate = 0
+        self.presence_filter_events.clear()
+        self.presence_filter_suppressed_total = 0
+        self.ingestion_latency_ms.clear()
+        self.processing_latency_ms.clear()
+        self.input_mode = "listen"
+        self.replay_paused = False
+        self.replay_stop_requested = False
+        self.replay_step_budget = 0
+        self.replay_total_events = 0
+        self.replay_processed_events = 0
+        self.replay_last_error = None
+        self.last_replay_config = {}
+        if self.ai_model.ready:
+            n_rooms = len(self.ai_model.rooms)
+            if n_rooms > 0:
+                self.presence_belief = np.full(
+                    (n_rooms,),
+                    1.0 / n_rooms,
+                    dtype=np.float32,
+                )
+        else:
+            self.presence_belief = np.zeros((0,), dtype=np.float32)
+
     async def reset(self) -> None:
         async with self.lock:
-            self.events.clear()
-            self.rooms.clear()
-            self.edge_support.clear()
-            self.last_active_by_room.clear()
-            self.occupancy_confirmed_by_room.clear()
-            self.active_sensor_types_by_room.clear()
-            self.sequence_history.clear()
-            self.last_activation = None
-            self.current_room = None
-            self.current_active_rooms = []
-            self.latest_touched_edge = None
-            self.rejected_transitions = 0
-            self.non_adjacent_records.clear()
-            self.non_adjacent_total = 0
-            self.non_adjacent_multi_person = 0
-            self.non_adjacent_pet_or_noise = 0
-            self.non_adjacent_sensor_error = 0
-            self.current_people_estimate = 0
-            self.max_people_estimate = 0
-            self.presence_filter_events.clear()
-            self.presence_filter_suppressed_total = 0
-            self.ingestion_latency_ms.clear()
-            self.processing_latency_ms.clear()
-            self.input_mode = "listen"
-            self.replay_paused = False
-            self.replay_stop_requested = False
-            self.replay_step_budget = 0
-            self.replay_total_events = 0
-            self.replay_processed_events = 0
-            self.replay_last_error = None
-            self.last_replay_config = {}
-            if self.ai_model.ready:
-                n_rooms = len(self.ai_model.rooms)
-                if n_rooms > 0:
-                    self.presence_belief = np.full((n_rooms,), 1.0 / n_rooms, dtype=np.float32)
-            else:
-                self.presence_belief = np.zeros((0,), dtype=np.float32)
+            self._reset_transient_locked()
 
     async def broadcast_event(self, payload: dict[str, Any]) -> None:
         if self.snapshot_publisher is not None:

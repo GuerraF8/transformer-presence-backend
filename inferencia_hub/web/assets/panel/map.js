@@ -188,7 +188,7 @@ export function drawMap(svg, rooms, edges, options, documentRef = document) {
       "font-size": 14,
       "font-family": "Segoe UI, Noto Sans, sans-serif",
     }).forEach(([name, value]) => label.setAttribute(name, String(value)));
-    label.textContent = roomLabel(room);
+    label.textContent = options.roomLabels?.[room] || roomLabel(room);
     svg.appendChild(label);
   });
 }

@@ -77,6 +77,7 @@ class LayoutMixin:
             "version": self.reference_layout_version,
             "source": self.reference_layout_source,
             "rooms": sorted(self.reference_layout.keys()),
+            "room_labels": dict(self.active_profile_room_labels),
             "adjacency": self.reference_layout,
             "adjacency_text": adjacency_to_text(self.reference_layout),
             "edges": edge_list_from_adjacency(self.reference_layout),

@@ -2,8 +2,9 @@
 
 Backend FastAPI para Transformer Presence. Recibe eventos desde Home Assistant, mantiene el estado de presencia, entrena modelos desde historicos CSV y sirve el panel web que la integracion HACS abre como iframe.
 
-La version `0.4.0` separa contexto, routers, transporte WebSocket, contratos y
-componentes del modelo. Consulta [ARCHITECTURE.md](ARCHITECTURE.md).
+La version `0.5.0` incorpora perfiles editables con habitaciones, areas de Home
+Assistant, entidades confirmadas y layouts arbitrarios. Consulta
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 `GET /api/sim_data` publica en `presence` los campos estables usados por las entidades de Home Assistant: `inferred_presence`, `people_estimate`, `confidence` y `updated_at`, ademas de `current_room` y `active_rooms`.
 
@@ -78,6 +79,8 @@ Las variables disponibles estan documentadas en `.env.example`. Las mas usadas s
 - `HISTORY_ENABLED`: valor inicial para activar persistencia.
 - `HISTORY_RETENTION_DAYS`: retencion inicial, 365 dias por defecto.
 - `HISTORY_PERSIST_MODES`: modos iniciales separados por coma.
+- `PRESENCE_PROFILES_PATH`: repositorio JSON de perfiles; por defecto
+  `/app/data/presence_profiles.json`.
 
 ## Historial de presencia
 
@@ -109,10 +112,32 @@ https://github.com/GuerraF8/transformer-presence-hacs
 
 Luego configura la URL base del backend con la URL publicada por este compose.
 
-## Seguridad de sensores reales
+## Perfiles, areas y entidades
 
-El backend mantiene una lista de sensores reales confirmados en `/api/real_sensor_config`.
-Los eventos enviados desde Home Assistant solo se procesan si el `entity_id` esta asignado, habilitado y presente en el catalogo HA vigente. Los eventos de fuentes desconocidas se ignoran.
+Las instalaciones nuevas comienzan sin perfil activo. Desde el modal del panel
+se puede copiar `real_home`, crear un perfil manual o detectar las areas
+publicadas por Home Assistant. Cada perfil conserva habitaciones con slug
+estable, areas vinculadas, entidades confirmadas, categorias de sensor y
+conexiones del mapa.
+
+Los endpoints principales son:
+
+- `GET/POST /api/profiles`
+- `GET/PUT/DELETE /api/profiles/{profile_id}`
+- `POST /api/profiles/{profile_id}/activate`
+- `POST /api/profiles/{profile_id}/infer-layout`
+
+Las actualizaciones usan revision optimista y devuelven `409` ante un borrador
+obsoleto. Sin perfil activo, `/api/events` no procesa inferencia y las entidades
+de Home Assistant permanecen no disponibles. Los modelos se guardan por perfil
+en `/app/data/model_state/profiles/{profile_id}`.
+
+## Seguridad de entidades reales
+
+El backend mantiene una lista de entidades confirmadas dentro del perfil activo.
+Los eventos enviados desde Home Assistant solo se procesan si el `entity_id`
+esta asignado, habilitado y presente en el catalogo HA vigente, sin restringir
+el dominio. `/api/real_sensor_config` se conserva como adaptador del perfil.
 
 Esto protege instalaciones donde los sensores reales tienen nombres iguales a los de un historico CSV: el replay CSV usa una fuente separada y los eventos reales no afectan presencia ni alertas hasta que el usuario los confirme explicitamente desde el panel.
 

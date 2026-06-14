@@ -12,6 +12,7 @@ from .history import build_router as build_history_router
 from .home_assistant import build_router as build_home_assistant_router
 from .layout import build_router as build_layout_router
 from .presence import build_router as build_presence_router
+from .profiles import build_router as build_profiles_router
 from .replay import build_router as build_replay_router
 from .training import build_router as build_training_router
 
@@ -27,6 +28,7 @@ def include_domain_routers(
         build_history_router(handler_map),
         build_home_assistant_router(handler_map),
         build_layout_router(handler_map),
+        build_profiles_router(handler_map),
         build_training_router(handler_map),
         build_replay_router(handler_map),
     ):

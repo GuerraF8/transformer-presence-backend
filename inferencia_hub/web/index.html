@@ -91,6 +91,121 @@
             </div>
 
             <details class="settings-card" open>
+              <summary>Perfiles y layout</summary>
+              <div class="settings-grid profile-workflow">
+                <div id="profileNoActiveNotice" class="profile-notice" role="status">
+                  No hay un perfil activo. La inferencia permanecerá no disponible hasta activar uno.
+                </div>
+                <section id="profileOnboarding" class="sensor-config-section" aria-labelledby="profileOnboardingTitle">
+                  <div class="sensor-config-heading">
+                    <h3 id="profileOnboardingTitle">Comenzar configuración</h3>
+                    <p class="hint">Copia el preset actual, crea un perfil vacío o detecta áreas y entidades de Home Assistant.</p>
+                  </div>
+                  <div class="profile-create-actions">
+                    <button type="button" class="secondary" data-profile-create="real_home">Partir desde real_home</button>
+                    <button type="button" class="secondary" data-profile-create="manual">Crear perfil manual</button>
+                    <button type="button" class="secondary" data-profile-create="detected">Detectar desde Home Assistant</button>
+                  </div>
+                </section>
+
+                <section class="sensor-config-section" aria-labelledby="profileManagerTitle">
+                  <div class="sensor-config-heading">
+                    <h3 id="profileManagerTitle">1. Perfil</h3>
+                    <p class="hint">Los cambios se conservan como borrador hasta guardarlos.</p>
+                  </div>
+                  <div class="profile-manager-grid">
+                    <label>
+                      Perfil
+                      <select id="profileSelect" aria-controls="profileEditor"></select>
+                    </label>
+                    <label>
+                      Nombre
+                      <input id="profileNameInput" type="text" autocomplete="off" />
+                    </label>
+                    <div class="training-actions align-end">
+                      <button type="button" class="secondary" data-profile-create="manual">Nuevo</button>
+                      <button id="profileSaveBtn" type="button">Guardar</button>
+                      <button id="profileActivateBtn" type="button" class="secondary">Activar</button>
+                      <button id="profileDeleteBtn" type="button" class="danger">Eliminar</button>
+                    </div>
+                  </div>
+                  <div class="profile-status-row">
+                    <span id="profileRevision" class="mini">Sin perfil seleccionado</span>
+                    <span id="profileStatus" class="mini" role="status" aria-live="polite"></span>
+                  </div>
+                </section>
+
+                <div id="profileEditor">
+                  <section class="sensor-config-section" aria-labelledby="profileRoomsTitle">
+                    <div class="sensor-config-heading">
+                      <h3 id="profileRoomsTitle">2. Habitaciones y áreas</h3>
+                      <p class="hint">El slug es estable; el nombre visible puede seguir los renombres de Home Assistant.</p>
+                    </div>
+                    <fieldset class="profile-area-fieldset">
+                      <legend>Áreas detectadas</legend>
+                      <div id="profileAreaList" class="profile-area-list"></div>
+                    </fieldset>
+                    <div class="new-room-controls">
+                      <label>
+                        Nueva habitación manual
+                        <input id="profileRoomName" type="text" placeholder="Oficina, pasillo..." />
+                      </label>
+                      <button id="profileRoomAddBtn" type="button" class="secondary">Agregar habitación</button>
+                    </div>
+                    <div class="table-wrap profile-room-table">
+                      <table class="data-table">
+                        <caption class="sr-only">Habitaciones configuradas en el perfil</caption>
+                        <thead>
+                          <tr>
+                            <th scope="col">Slug</th>
+                            <th scope="col">Nombre visible</th>
+                            <th scope="col">Área</th>
+                            <th scope="col">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody id="profileRoomList"></tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section class="sensor-config-section" aria-labelledby="profileEdgesTitle">
+                    <div class="sensor-config-heading">
+                      <h3 id="profileEdgesTitle">4. Conexiones</h3>
+                      <p class="hint">Define la adyacencia o acepta propuestas calculadas desde el historial.</p>
+                    </div>
+                    <div class="profile-edge-grid">
+                      <label>Origen <select id="profileEdgeFrom"></select></label>
+                      <label>Destino <select id="profileEdgeTo"></select></label>
+                      <button id="profileEdgeAddBtn" type="button" class="secondary">Agregar conexión</button>
+                    </div>
+                    <div class="table-wrap profile-edge-table">
+                      <table class="data-table">
+                        <caption class="sr-only">Conexiones entre habitaciones</caption>
+                        <thead><tr><th scope="col">Conexión</th><th scope="col">Acción</th></tr></thead>
+                        <tbody id="profileEdgeList"></tbody>
+                      </table>
+                    </div>
+                    <div class="profile-inference-grid">
+                      <label>Soporte mínimo <input id="profileMinSupport" type="number" min="1" value="2" /></label>
+                      <label>Separación máxima <input id="profileMaxGap" type="number" min="1" value="600" /></label>
+                      <button id="profileInferBtn" type="button" class="secondary">Proponer desde historial</button>
+                    </div>
+                    <div id="profileProposalList" class="profile-proposal-list"></div>
+                    <button id="profileProposalAcceptBtn" type="button" class="secondary">Aceptar propuestas seleccionadas</button>
+                  </section>
+
+                  <section class="sensor-config-section" aria-labelledby="profilePreviewTitle">
+                    <div class="sensor-config-heading">
+                      <h3 id="profilePreviewTitle">5. Vista previa</h3>
+                      <p class="hint">Los mapas Real y Vivo usarán este layout al activar el perfil.</p>
+                    </div>
+                    <svg id="profileMapPreview" class="profile-map-preview" viewBox="0 0 640 300" role="img" aria-label="Vista previa del mapa del perfil"></svg>
+                  </section>
+                </div>
+              </div>
+            </details>
+
+            <details class="settings-card" open>
               <summary>WebSocket</summary>
               <div class="settings-grid">
                 <div class="setting-row">
@@ -166,6 +281,8 @@
                 <div class="training-actions">
                   <button id="haRefreshCatalogBtn" type="button" class="secondary">Refrescar catálogo</button>
                   <button id="haCreateTestSensorsBtn" type="button" class="secondary">Crear sensores de prueba</button>
+                  <button id="haRemoveTestSensorsBtn" type="button" class="secondary">Eliminar sensores de prueba</button>
+                  <button id="haRemoveTestResourcesBtn" type="button" class="danger">Eliminar sensores y áreas de prueba</button>
                   <button id="haCheckDiagnosticsBtn" type="button" class="secondary">Comprobar diagnóstico</button>
                 </div>
                 <div class="training-grid">
@@ -228,27 +345,12 @@
                   <span>Sensores reales activos</span>
                   <strong id="realSensorSummary">sin asignaciones</strong>
                 </div>
-                <section class="sensor-config-section" aria-labelledby="newRoomTitle">
-                  <div class="sensor-config-heading">
-                    <div>
-                      <h3 id="newRoomTitle">Nueva habitación</h3>
-                      <p class="hint">Agrega una habitación antes de asignarla a una entidad.</p>
-                    </div>
-                  </div>
-                  <div class="new-room-controls">
-                  <label>
-                    Nombre de habitación
-                    <input id="realSensorNewRoomInput" type="text" placeholder="office, hallway..." />
-                  </label>
-                    <button id="realSensorAddRoomBtn" type="button" class="secondary">Agregar habitación</button>
-                  </div>
-                </section>
                 <section class="sensor-config-section sensor-selection-section" aria-labelledby="sensorSelectionTitle">
                   <div class="sensor-selection-toolbar">
                     <div class="sensor-config-heading">
                       <div>
-                        <h3 id="sensorSelectionTitle">Seleccionar sensores</h3>
-                        <p class="hint">Busca, asigna una habitación y confirma los cambios.</p>
+                        <h3 id="sensorSelectionTitle">3. Seleccionar entidades</h3>
+                        <p class="hint">Puedes usar cualquier dominio. Las entidades nuevas de un área no se seleccionan automáticamente.</p>
                       </div>
                     </div>
                     <div class="sensor-search-grid">
@@ -257,11 +359,13 @@
                         <input id="realSensorSearchInput" type="search" placeholder="sensor, habitación, estado..." aria-controls="haSensorList" />
                       </label>
                       <label>
-                        Modo sensores reales
-                        <select id="realSensorRequireSelect" aria-controls="haSensorList">
-                          <option value="true" selected>Solo sensores confirmados</option>
-                        </select>
+                        Área
+                        <select id="profileAreaFilter" aria-controls="haSensorList"></select>
                       </label>
+                    </div>
+                    <div class="profile-area-actions">
+                      <button id="profileAreaSelectBtn" type="button" class="secondary">Seleccionar entidades del área</button>
+                      <button id="profileAreaClearBtn" type="button" class="secondary">Quitar entidades del área</button>
                     </div>
                   </div>
                   <div class="table-wrap sensor-table-wrap">
@@ -271,7 +375,8 @@
                         <tr>
                           <th scope="col">Usar</th>
                           <th scope="col">Entidad</th>
-                          <th scope="col">Tipo</th>
+                          <th scope="col">Área</th>
+                          <th scope="col">Categoría</th>
                           <th scope="col">Habitación</th>
                           <th scope="col">Estado</th>
                         </tr>
@@ -446,7 +551,7 @@
               </div>
             </details>
 
-            <details class="settings-card" open>
+            <details class="settings-card" data-dev-only hidden>
               <summary>Escenarios</summary>
               <div class="settings-grid">
                 <label>

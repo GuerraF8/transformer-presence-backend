@@ -12,6 +12,7 @@ export function createHomeAssistantController({
   appendBadgeCell,
   setMiniStatus,
   renderAll,
+  sensorSelectionController = null,
   documentRef = document,
   windowRef = window,
 }) {
@@ -129,6 +130,14 @@ export function createHomeAssistantController({
   }
 
   function renderCatalog() {
+    if (sensorSelectionController) {
+      sensorSelectionController.renderEntities();
+      const catalog = state.haEntityCatalog || {};
+      el.haSensorStatus.textContent =
+        `${catalog.auto_discovery === false ? "lista explícita" : "catálogo completo"} | ` +
+        (catalog.scanned_at ? formatTime(catalog.scanned_at) : "sin escaneo");
+      return;
+    }
     const catalog = state.haEntityCatalog || {};
     const config = workingConfig();
     const entities = Array.isArray(catalog.entities) ? catalog.entities : [];
@@ -277,16 +286,16 @@ export function createHomeAssistantController({
     el.haDiagEntry.textContent = String(
       heartbeat?.entry_id || catalog.entry_id || "-",
     );
-    let message = `Catálogo recibido: ${supported.length} sensores compatibles de ${entities.length} entidades.`;
+    let message =
+      `Catálogo recibido: ${entities.length} entidades; ` +
+      `${supported.length} con categoría autodetectada.`;
     let error = false;
     if (!heartbeat && !catalog.received_at) {
       message =
         "El backend no ve heartbeat ni catálogo de la integración Home Assistant.";
       error = true;
-    } else if (!entities.length || !supported.length) {
-      message = !entities.length
-        ? "Home Assistant publicó un catálogo vacío."
-        : "No hay entidades compatibles como motion, door u occupancy.";
+    } else if (!entities.length) {
+      message = "Home Assistant publicó un catálogo vacío.";
       error = true;
     }
     if (pending.length) {
@@ -296,6 +305,20 @@ export function createHomeAssistantController({
     if (heartbeat?.last_error) {
       message += ` Último error HA: ${heartbeat.last_error}`;
       error = true;
+    }
+    if (latest?.action === "create_test_sensors") {
+      message =
+        `Recursos de prueba: ${(latest.created_sensors || []).length} sensores y ` +
+        `${(latest.created_areas || []).length} áreas nuevas.`;
+      error = false;
+    } else if (
+      ["remove_test_sensors", "remove_test_resources"].includes(latest?.action)
+    ) {
+      message =
+        `Recursos eliminados: ${(latest.removed_sensors || []).length} sensores y ` +
+        `${(latest.removed_areas || []).length} áreas. ` +
+        `Áreas conservadas: ${(latest.preserved_areas || []).length}.`;
+      error = latest?.status === "error";
     }
     setMiniStatus(el.haDiagnosticStatus, message, error);
   }
@@ -382,6 +405,24 @@ export function createHomeAssistantController({
     }
   }
 
+  async function removeTestResources(removeAreas) {
+    try {
+      const action = removeAreas
+        ? "remove_test_resources"
+        : "remove_test_sensors";
+      const result = await requestAction(action);
+      setMiniStatus(
+        el.haSensorStatus,
+        `eliminación solicitada a Home Assistant | ${result.request_id || ""}`,
+        false,
+      );
+      await fetchActions();
+      scheduleRefresh();
+    } catch (error) {
+      setMiniStatus(el.haSensorStatus, String(error.message || error), true);
+    }
+  }
+
   function buildPayload() {
     const config = workingConfig();
     return {
@@ -442,6 +483,18 @@ export function createHomeAssistantController({
   function registerActions() {
     el.haRefreshCatalogBtn?.addEventListener("click", refreshCatalog);
     el.haCreateTestSensorsBtn?.addEventListener("click", createTestSensors);
+    el.haRemoveTestSensorsBtn?.addEventListener("click", () =>
+      removeTestResources(false),
+    );
+    el.haRemoveTestResourcesBtn?.addEventListener("click", () => {
+      if (
+        windowRef.confirm(
+          "¿Eliminar los sensores y las áreas de prueba que pertenecen a la integración?",
+        )
+      ) {
+        removeTestResources(true);
+      }
+    });
     el.haCheckDiagnosticsBtn?.addEventListener("click", () => {
       refreshDiagnostics().catch((error) =>
         setMiniStatus(
@@ -451,19 +504,21 @@ export function createHomeAssistantController({
         ),
       );
     });
-    el.realSensorAddRoomBtn?.addEventListener("click", addRoom);
-    el.realSensorSearchInput?.addEventListener("input", () => {
-      state.realSensorSearch = el.realSensorSearchInput.value || "";
-      renderCatalog();
-    });
-    el.realSensorRequireSelect?.addEventListener("change", () => {
-      workingConfig().require_explicit_selection =
-        el.realSensorRequireSelect.value !== "false";
-      markDirty("modo pendiente: confirma para aplicar sensores reales");
-      renderCatalog();
-    });
-    el.realSensorResetBtn?.addEventListener("click", resetDraft);
-    el.realSensorApplyBtn?.addEventListener("click", applyConfig);
+    if (!sensorSelectionController) {
+      el.realSensorAddRoomBtn?.addEventListener("click", addRoom);
+      el.realSensorSearchInput?.addEventListener("input", () => {
+        state.realSensorSearch = el.realSensorSearchInput.value || "";
+        renderCatalog();
+      });
+      el.realSensorRequireSelect?.addEventListener("change", () => {
+        workingConfig().require_explicit_selection =
+          el.realSensorRequireSelect.value !== "false";
+        markDirty("modo pendiente: confirma para aplicar sensores reales");
+        renderCatalog();
+      });
+      el.realSensorResetBtn?.addEventListener("click", resetDraft);
+      el.realSensorApplyBtn?.addEventListener("click", applyConfig);
+    }
   }
 
   return {

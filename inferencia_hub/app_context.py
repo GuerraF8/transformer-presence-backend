@@ -9,6 +9,7 @@ from fastapi import WebSocket
 
 from .history_store import HistoryStore, history_store_from_env
 from .hub_state import InferenceHubState
+from .profile_store import PresenceProfileStore, profile_store_from_env
 
 
 def utc_iso() -> str:
@@ -26,6 +27,7 @@ class HAEntityCatalog:
             "received_at": None,
             "auto_discovery": True,
             "tracked_entities": [],
+            "areas": [],
             "entities": [],
             "entities_total": 0,
             "supported_total": 0,
@@ -153,6 +155,7 @@ def default_training_status() -> dict[str, dict[str, Any]]:
 class ApplicationContext:
     hub: InferenceHubState = field(default_factory=InferenceHubState)
     history: HistoryStore = field(default_factory=history_store_from_env)
+    profiles: PresenceProfileStore = field(default_factory=profile_store_from_env)
     catalog: HAEntityCatalog = field(default_factory=HAEntityCatalog)
     actions: HAActionQueue = field(default_factory=HAActionQueue)
     websocket: WebSocketBroker = field(default_factory=WebSocketBroker)

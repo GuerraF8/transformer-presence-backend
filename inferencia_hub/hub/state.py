@@ -8,9 +8,10 @@ from .filtering import FilteringMixin
 from .inference import InferenceMixin
 from .events import EventsMixin
 from .snapshot import SnapshotMixin
+from .profiles import ProfilesMixin
 
 
-class InferenceHubState(LayoutMixin, SensorsMixin, MetricsMixin, FilteringMixin, InferenceMixin, EventsMixin, SnapshotMixin):
+class InferenceHubState(ProfilesMixin, LayoutMixin, SensorsMixin, MetricsMixin, FilteringMixin, InferenceMixin, EventsMixin, SnapshotMixin):
     def __init__(self) -> None:
         self.lock = asyncio.Lock()
         self.events: list[dict[str, Any]] = []
@@ -33,6 +34,12 @@ class InferenceHubState(LayoutMixin, SensorsMixin, MetricsMixin, FilteringMixin,
         self.reference_layout: dict[str, list[str]] = {}
         self.reference_layout_source = "auto"
         self.reference_layout_version = 0
+        self.active_profile_id: str | None = None
+        self.active_profile_name: str | None = None
+        self.active_profile_revision: int | None = None
+        self.active_profile_fingerprint: str | None = None
+        self.active_profile_model_compatible = False
+        self.active_profile_room_labels: dict[str, str] = {}
 
         self.non_adjacent_records: list[dict[str, Any]] = []
         self.max_non_adjacent_records = 2000
@@ -73,14 +80,7 @@ class InferenceHubState(LayoutMixin, SensorsMixin, MetricsMixin, FilteringMixin,
         self.ai_model = AIAdjacencyModel()
         self.presence_belief = np.zeros((0,), dtype=np.float32)
         self.sequence_history: deque[EventRecord] = deque(maxlen=512)
-        self.real_sensor_rooms: set[str] = {
-            "bedroom",
-            "entertainment_room",
-            "foyer",
-            "kitchen",
-            "living",
-            "sittingroom",
-        }
+        self.real_sensor_rooms: set[str] = set()
         self.real_sensor_assignments: dict[str, dict[str, Any]] = {}
         self.real_sensor_require_explicit_selection = True
         self.real_sensor_rejected_events = 0

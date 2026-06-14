@@ -7,6 +7,7 @@ export function createPanelState() {
     activeRooms: [],
     occupancyRooms: [],
     liveSensorRooms: [],
+    roomLabels: {},
     latestEdge: null,
     inferredEdges: new Map(),
     reference: {
@@ -38,6 +39,15 @@ export function createPanelState() {
     presenceFilter: {},
     haEntityCatalog: {},
     haActions: {},
+    profiles: {
+      items: [],
+      activeId: null,
+      selectedId: null,
+      draft: null,
+      dirty: false,
+      proposals: [],
+      areaFilter: "",
+    },
     realSensorConfig: {
       rooms: [],
       assignments: [],

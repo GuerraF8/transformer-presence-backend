@@ -41,6 +41,9 @@ export function applySnapshotState(state, simData) {
     };
   }
   if (simData.replay) state.replay = { ...state.replay, ...simData.replay };
+  if (simData.profile?.room_labels) {
+    state.roomLabels = { ...simData.profile.room_labels };
+  }
   if (simData.meta?.input_mode) state.replay.mode = simData.meta.input_mode;
   const presence = simData.presence;
   if (presence && typeof presence === "object") {

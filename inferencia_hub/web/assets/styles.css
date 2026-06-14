@@ -796,6 +796,145 @@ label {
   overflow: hidden;
 }
 
+.profile-workflow,
+#profileEditor {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-notice {
+  border: 1px solid var(--ha-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--ha-panel-2);
+  color: var(--ha-muted);
+}
+
+.profile-create-actions,
+.profile-area-actions {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-manager-grid {
+  padding: 0 12px 12px;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.profile-status-row {
+  min-height: 30px;
+  padding: 0 12px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.profile-area-fieldset {
+  margin: 0 12px 12px;
+  border: 1px solid var(--ha-border-soft);
+  border-radius: 8px;
+  padding: 9px 10px 10px;
+}
+
+.profile-area-fieldset legend {
+  padding: 0 5px;
+  color: var(--ha-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.profile-area-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 7px;
+}
+
+.profile-area-option,
+.profile-proposal {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-area-option input,
+.profile-proposal input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--ha-accent);
+}
+
+.profile-room-table,
+.profile-edge-table {
+  margin: 0 12px 12px;
+  width: auto;
+  max-height: 230px;
+}
+
+.profile-edge-grid,
+.profile-inference-grid {
+  padding: 0 12px 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr)) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.profile-proposal-list {
+  margin: 0 12px 10px;
+  max-height: 180px;
+  overflow: auto;
+  display: grid;
+  gap: 7px;
+}
+
+#profileProposalAcceptBtn {
+  margin: 0 12px 12px;
+  justify-self: start;
+}
+
+.profile-map-preview {
+  width: calc(100% - 24px);
+  min-height: 250px;
+  margin: 0 12px 12px;
+  border: 1px solid var(--ha-border-soft);
+  border-radius: 8px;
+  background: var(--ha-panel);
+}
+
+.profile-map-edge {
+  stroke: var(--ha-accent);
+  stroke-width: 2;
+}
+
+.profile-map-node {
+  fill: var(--ha-panel-2);
+  stroke: var(--ha-accent);
+  stroke-width: 2;
+}
+
+.profile-map-label {
+  fill: var(--ha-text);
+  font-size: 12px;
+}
+
+.profile-warning {
+  display: block;
+  margin-top: 4px;
+  color: var(--ha-warning);
+}
+
+.compact-button {
+  min-height: 34px;
+  padding: 6px 9px;
+}
+
 .sensor-config-heading {
   min-width: 0;
   padding: 12px;
@@ -1499,6 +1638,9 @@ kbd {
   .training-grid,
   .new-room-controls,
   .sensor-search-grid,
+  .profile-manager-grid,
+  .profile-edge-grid,
+  .profile-inference-grid,
   .api-access-row,
   .replay-strip,
   .sim-toolbar,
@@ -1515,6 +1657,10 @@ kbd {
   .history-filter-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .profile-area-list {
+    grid-template-columns: 1fr;
   }
 
   .training-status-card.wide {

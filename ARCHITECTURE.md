@@ -29,6 +29,7 @@ los routers y los recursos estáticos. Los controladores están organizados en
 - `presence.py`: ingesta, consultas, modos y WebSocket.
 - `history.py`: configuración y consultas históricas.
 - `home_assistant.py`: catálogo, sensores y acciones de Home Assistant.
+- `profiles.py`: CRUD, activación, migración y modelos aislados por perfil.
 - `layout.py`: escenarios, mapa de referencia y métricas.
 - `training.py`: entrenamiento y artefactos.
 - `replay.py`: carga, ejecución y control de reproducciones.
@@ -49,6 +50,7 @@ organizadas en `inferencia_hub/hub/`:
 - `inference.py`: creencia probabilística, inferencia y transiciones.
 - `events.py`: procesamiento completo de eventos.
 - `snapshot.py`: snapshots, reinicio y publicación.
+- `profiles.py`: aplica habitaciones, entidades y conexiones al núcleo.
 
 ```mermaid
 flowchart LR
@@ -57,6 +59,7 @@ flowchart LR
   API --> CTX[ApplicationContext]
   CTX --> HUB[InferenceHubState]
   CTX --> HIST[HistoryStore]
+  CTX --> PROFILES[PresenceProfileStore]
   CTX --> CAT[HAEntityCatalog]
   CTX --> ACT[HAActionQueue]
   HUB --> MODEL[AIAdjacencyModel]
@@ -85,12 +88,14 @@ resolución de nombres se realizan en tiempo constante.
 `panel/main.js` inicia el panel y `panel/orchestrator.js` coordina sus
 controladores. Las funciones de interfaz se distribuyen entre `dashboard.js`,
 `realtime.js`, `home-assistant.js`, `history.js`, `replay-training.js`,
-`map.js`, `modal.js` y `real-sensors.js`.
+`map.js`, `modal.js`, `profiles.js`, `profile-api.js`, `profile-events.js`,
+`profile-mutations.js`, `profile-entities.js`, `profile-view.js`,
+`profile-preview.js` y `profile-draft.js`.
 
 ## Flujo de un evento
 
 1. HACS normaliza el cambio de estado y lo envía a `/api/events`.
-2. El controlador valida la fuente, el modo y el catálogo de entidades.
+2. El controlador valida el perfil activo, la fuente, el modo y el catálogo.
 3. `InferenceHubState.process_event` actualiza presencia, mapa y métricas.
 4. El evento se envía a la cola SQLite y a las conexiones WebSocket.
 5. HACS aplica la respuesta a las entidades nativas de Home Assistant.

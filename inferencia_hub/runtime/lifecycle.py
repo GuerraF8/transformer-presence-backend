@@ -11,6 +11,12 @@ def model_state_dir() -> Path:
     return Path(os.getenv("MODEL_STATE_DIR", str(data_dir() / "model_state")))
 
 
+def active_model_state_dir() -> Path | None:
+    if not hub_state.active_profile_id:
+        return None
+    return model_state_dir() / "profiles" / hub_state.active_profile_id
+
+
 def training_status_path() -> Path:
     return Path(os.getenv("TRAINING_STATUS_PATH", str(data_dir() / "training_status.json")))
 
@@ -158,8 +164,16 @@ def load_training_status() -> None:
 
 
 def persist_model_state() -> dict[str, Any] | None:
+    target = active_model_state_dir()
+    if target is None:
+        return None
     try:
-        return hub_state.ai_model.save_state(model_state_dir())
+        hub_state.ai_model.training_info["profile_fingerprint"] = (
+            hub_state.active_profile_fingerprint
+        )
+        saved = hub_state.ai_model.save_state(target)
+        hub_state.active_profile_model_compatible = True
+        return saved
     except Exception:
         LOGGER.exception("No se pudo persistir el estado del modelo")
         return None
@@ -268,30 +282,33 @@ def mark_training_status(
 
 
 async def startup_train_model() -> None:
+    from .profiles import _apply_profile, initialize_profiles
+
     await history_store.start()
     load_training_status()
-    load_real_sensor_config()
-    model_load = await asyncio.to_thread(hub_state.ai_model.load_state, model_state_dir())
-    if model_load.get("loaded"):
-        async with hub_state.lock:
-            hub_state.rooms.update(hub_state.ai_model.rooms)
-            hub_state._ensure_reference_layout_locked()
-            n_rooms = len(hub_state.ai_model.rooms)
-            if n_rooms > 0:
-                import numpy as np
-
-                hub_state.presence_belief = np.full((n_rooms,), 1.0 / n_rooms, dtype=np.float32)
+    active_profile = await asyncio.to_thread(
+        initialize_profiles,
+        real_sensor_config_path(),
+    )
+    if active_profile:
+        await _apply_profile(active_profile)
+    if hub_state.active_profile_model_compatible:
         training_status["model_state"] = {
             "state": "loaded",
             "label": "Estado persistido",
-            "message": "modelo cargado desde disco",
+            "message": "modelo del perfil cargado desde disco",
             "loaded_at": to_utc_iso(datetime.now(timezone.utc)),
-            "result_summary": model_load,
+            "result_summary": {
+                "profile_id": hub_state.active_profile_id,
+                "fingerprint": hub_state.active_profile_fingerprint,
+            },
         }
         persist_training_status()
         if os.getenv("FORCE_AUTO_TRAIN_ON_START", "0") != "1":
             return
 
+    if not hub_state.active_profile_id:
+        return
     if os.getenv("AUTO_TRAIN_ON_START", "1") == "0":
         return
     csv_path = resolve_training_csv()
@@ -311,6 +328,7 @@ async def startup_train_model() -> None:
             async with hub_state.lock:
                 hub_state.rooms.update(hub_state.ai_model.rooms)
                 hub_state._ensure_reference_layout_locked()
+            await asyncio.to_thread(persist_model_state)
             # No se reinicia el estado porque el entrenamiento automático se ejecuta
             # en segundo plano y puede finalizar con eventos ya procesados.
         except Exception:

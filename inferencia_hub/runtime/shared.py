@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
+from ..ai_model import AIAdjacencyModel
 from ..app_context import ApplicationContext
 from ..domain import (
     CsvReplayRequest,
@@ -23,7 +24,11 @@ from ..domain import (
     HistoryPurgeInput,
     LayoutReferenceInput,
     PresenceFilterConfigInput,
+    ProfileCreateInput,
+    ProfileInferLayoutInput,
+    ProfileUpdateInput,
     RealSensorConfigInput,
+    REAL_HOME_LAYOUT_EDGES,
     ReplayControlInput,
     RuntimeModeInput,
     SensorEventInput,
@@ -45,6 +50,7 @@ from ..domain import (
 context = ApplicationContext()
 hub_state = context.hub
 history_store = context.history
+profile_store = context.profiles
 ha_entity_catalog = context.catalog
 training_status = context.training_status
 LOGGER = logging.getLogger("inferencia_hub")

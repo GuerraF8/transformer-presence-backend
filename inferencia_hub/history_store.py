@@ -624,6 +624,80 @@ class HistoryStore:
             "max_points": limit,
         }
 
+    def transition_support(
+        self,
+        entity_ids: list[str],
+        *,
+        max_gap_seconds: int = 600,
+    ) -> list[dict[str, Any]]:
+        normalized = sorted(
+            {
+                str(entity_id or "").strip().lower()
+                for entity_id in entity_ids
+                if str(entity_id or "").strip()
+            }
+        )
+        if not normalized:
+            return []
+        placeholders = ",".join("?" for _item in normalized)
+        with self._connection() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT event_timestamp, entity_id, room, state
+                FROM presence_events
+                WHERE LOWER(entity_id) IN ({placeholders})
+                ORDER BY event_timestamp ASC, id ASC
+                """,
+                normalized,
+            ).fetchall()
+        active_states = {
+            "on",
+            "open",
+            "opened",
+            "occupied",
+            "home",
+            "present",
+            "detected",
+            "motion",
+            "active",
+            "true",
+        }
+        previous: tuple[datetime, str] | None = None
+        supports: dict[tuple[str, str], int] = {}
+        for row in rows:
+            room = str(row["room"] or "").strip().lower()
+            if not room or str(row["state"] or "").strip().lower() not in active_states:
+                continue
+            try:
+                timestamp = datetime.fromisoformat(
+                    str(row["event_timestamp"]).replace("Z", "+00:00")
+                )
+            except ValueError:
+                continue
+            if previous is not None:
+                previous_time, previous_room = previous
+                gap = (timestamp - previous_time).total_seconds()
+                if (
+                    previous_room != room
+                    and 0 <= gap <= max(1, int(max_gap_seconds))
+                ):
+                    edge = tuple(sorted((previous_room, room)))
+                    supports[edge] = supports.get(edge, 0) + 1
+            previous = (timestamp, room)
+        total = sum(supports.values())
+        return [
+            {
+                "a": edge[0],
+                "b": edge[1],
+                "support": support,
+                "confidence": round(support / total, 4) if total else 0.0,
+            }
+            for edge, support in sorted(
+                supports.items(),
+                key=lambda item: (-item[1], item[0]),
+            )
+        ]
+
 
 def history_store_from_env() -> HistoryStore:
     modes = {

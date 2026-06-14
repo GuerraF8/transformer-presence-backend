@@ -10,6 +10,14 @@ from .lifecycle import (
 )
 
 
+def _require_active_profile() -> None:
+    if not hub_state.active_profile_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Debe activar un perfil antes de entrenar",
+        )
+
+
 def download_training_export(filename: str) -> FileResponse:
     safe_name = Path(filename).name
     if safe_name != filename or not safe_name.endswith(".csv"):
@@ -26,6 +34,7 @@ def download_training_export(filename: str) -> FileResponse:
 
 
 async def train_model(req: TrainModelRequest) -> dict[str, Any]:
+    _require_active_profile()
     mark_training_status(
         "historical",
         "running",
@@ -70,6 +79,7 @@ async def train_model(req: TrainModelRequest) -> dict[str, Any]:
 
 
 async def train_model_full(req: TrainModelFullRequest) -> dict[str, Any]:
+    _require_active_profile()
     mark_training_status(
         "historical",
         "running",
@@ -132,6 +142,7 @@ async def train_model_full(req: TrainModelFullRequest) -> dict[str, Any]:
 
 
 async def train_presence_simulator(req: TrainSimulatorPresenceRequest) -> dict[str, Any]:
+    _require_active_profile()
     if req.use_real_profile and not req.real_profile_csv_path:
         resolved_csv = resolve_training_csv()
         if resolved_csv:

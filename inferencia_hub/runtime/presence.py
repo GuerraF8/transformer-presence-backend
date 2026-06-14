@@ -18,6 +18,7 @@ def health() -> dict[str, Any]:
             hub_state.ai_model.occupancy_transformer_info.get("enabled")
         ),
         "input_mode": hub_state.input_mode,
+        "profile": hub_state._profile_payload_locked(),
         "replay_running": running,
         "replay_paused": hub_state.replay_paused,
         "presence_filter": hub_state.presence_filter_config(),
@@ -41,6 +42,12 @@ def catalog_has_entity(entity_id: str) -> bool:
 
 
 async def ingest_event(payload: SensorEventInput) -> dict[str, Any]:
+    if not hub_state.active_profile_id:
+        return {
+            "status": "ignored",
+            "reason": "no_active_profile",
+            "input_mode": hub_state.input_mode,
+        }
     source = str(payload.source or "").lower()
     is_csv = source.startswith("csv_")
     is_simulator = "simulator" in source or source in {"manual_send", "sensor_simulator"}
@@ -96,6 +103,7 @@ async def set_presence_filter(req: PresenceFilterConfigInput) -> dict[str, Any]:
 
 def model_info() -> dict[str, Any]:
     return {
+        "profile": hub_state._profile_payload_locked(),
         "ready": hub_state.ai_model.ready,
         "rooms": hub_state.ai_model.rooms,
         "edges": hub_state.ai_model.adjacency_edges,

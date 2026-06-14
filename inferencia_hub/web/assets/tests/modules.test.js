@@ -36,6 +36,17 @@ import {
 import {
   resolveBackendUrl as resolveSimulatorBackendUrl,
 } from "../simulator/api.js";
+import {
+  availableRoomSlug,
+  profileSlug,
+  profileUpdatePayload,
+} from "../panel/profile-draft.js";
+import {
+  appendProfileEdge,
+  appendProfileRoom,
+  removeProfileRoom,
+  setProfileEntity,
+} from "../panel/profile-mutations.js";
 
 test("format helpers preserve panel output contracts", () => {
   assert.equal(toPercent(0.125), "12.5%");
@@ -196,6 +207,7 @@ test("realtime reducers update snapshots and events without DOM", () => {
   const state = createPanelState();
   applySnapshotState(state, {
     rooms: ["kitchen"],
+    profile: { room_labels: { kitchen: "Cocina principal" } },
     events: [],
     presence: { current_room: "kitchen", active_rooms: ["kitchen"] },
     inferred_layout_live: {
@@ -203,6 +215,7 @@ test("realtime reducers update snapshots and events without DOM", () => {
     },
   });
   assert.equal(state.currentRoom, "kitchen");
+  assert.equal(state.roomLabels.kitchen, "Cocina principal");
   assert.equal(state.inferredEdges.get("kitchen|living"), 2);
 
   applyEventState(state, {
@@ -213,4 +226,55 @@ test("realtime reducers update snapshots and events without DOM", () => {
   });
   assert.deepEqual(state.activeRooms, ["living"]);
   assert.deepEqual(state.occupancyRooms, ["living"]);
+});
+
+test("profile draft helpers preserve stable slugs and update contracts", () => {
+  assert.equal(profileSlug("Dormitorio Niños"), "dormitorio_ninos");
+  assert.equal(
+    availableRoomSlug("kitchen", [{ slug: "kitchen" }]),
+    "kitchen_2",
+  );
+  assert.deepEqual(
+    profileUpdatePayload({
+      revision: 4,
+      name: "Casa",
+      rooms: [],
+      areas: [],
+      assignments: [],
+      edges: [],
+      model: { compatible: true },
+    }),
+    {
+      revision: 4,
+      name: "Casa",
+      rooms: [],
+      areas: [],
+      assignments: [],
+      edges: [],
+    },
+  );
+});
+
+test("profile mutations keep rooms, assignments and edges consistent", () => {
+  const profile = { rooms: [], areas: [], assignments: [], edges: [] };
+  const room = appendProfileRoom(profile, "Cocina", {
+    area_id: "kitchen",
+    name: "Cocina",
+  });
+  setProfileEntity(profile, {
+    entity_id: "light.kitchen",
+    area_id: "kitchen",
+    area_name: "Cocina",
+    sensor_type: "other",
+    unique_id: "light-1",
+    platform: "test",
+  }, true);
+  appendProfileRoom(profile, "Pasillo");
+  assert.equal(appendProfileEdge(profile, room, "pasillo"), true);
+  assert.equal(profile.assignments[0].room_slug, "cocina");
+
+  removeProfileRoom(profile, "cocina");
+  assert.equal(profile.assignments.length, 0);
+  assert.equal(profile.edges.length, 0);
+  assert.equal(profile.areas.length, 0);
 });

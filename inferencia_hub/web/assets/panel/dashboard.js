@@ -78,10 +78,15 @@ export function createDashboardController({
         return { a, b, support };
       },
     );
+    const roomLabels = {
+      ...(state.reference.room_labels || {}),
+      ...state.roomLabels,
+    };
     const options = {
       activeRoom: state.currentRoom,
       activeRooms: state.activeRooms,
       occupancyRooms: state.occupancyRooms,
+      roomLabels,
     };
     drawMap(el.realGraph, rooms, referenceEdges, {
       ...options,
@@ -93,7 +98,9 @@ export function createDashboardController({
       latestEdge: state.latestEdge,
     });
     const presence = state.activeRooms.length
-      ? state.activeRooms.map(roomLabel).join(", ")
+      ? state.activeRooms
+          .map((room) => roomLabels[room] || roomLabel(room))
+          .join(", ")
       : "sin presencia";
     el.realMapMeta.textContent =
       `version ${state.reference.version || 0} | ` +

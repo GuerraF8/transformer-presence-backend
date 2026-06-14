@@ -8,6 +8,54 @@ from inferencia_hub.hub_state import InferenceHubState
 
 
 class HubStateContractTest(unittest.IsolatedAsyncioTestCase):
+    async def test_profile_supports_arbitrary_rooms_and_clears_state(self) -> None:
+        hub = InferenceHubState()
+        profile = {
+            "id": "profile-1",
+            "name": "Departamento",
+            "revision": 3,
+            "fingerprint": "abc",
+            "rooms": [
+                {"slug": "estudio", "name": "Estudio"},
+                {"slug": "terraza", "name": "Terraza"},
+            ],
+            "assignments": [
+                {
+                    "entity_id": "light.escritorio",
+                    "room_slug": "estudio",
+                    "enabled": True,
+                    "sensor_type": "other",
+                    "status": "active",
+                }
+            ],
+            "edges": [["estudio", "terraza"]],
+        }
+
+        hub.apply_profile(profile)
+        snapshot = hub.snapshot()
+        self.assertEqual(snapshot["profile"]["active_profile_id"], "profile-1")
+        self.assertEqual(
+            snapshot["profile"]["room_labels"]["estudio"],
+            "Estudio",
+        )
+        self.assertEqual(
+            snapshot["layout_reference"]["edges"],
+            [{"a": "estudio", "b": "terraza"}],
+        )
+        self.assertEqual(
+            snapshot["layout_reference"]["room_labels"]["terraza"],
+            "Terraza",
+        )
+        self.assertIn(
+            "light.escritorio",
+            snapshot["real_sensor_config"]["enabled_entities"],
+        )
+
+        hub.clear_active_profile()
+        snapshot = hub.snapshot()
+        self.assertFalse(snapshot["profile"]["available"])
+        self.assertEqual(snapshot["layout_reference"]["rooms"], [])
+
     async def test_event_processing_snapshot_callbacks_and_reset(self) -> None:
         hub = InferenceHubState()
         await hub.configure_presence_filter(

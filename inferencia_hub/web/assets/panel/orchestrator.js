@@ -3,6 +3,7 @@ import { createDashboardController } from "./dashboard.js";
 import { createHistoryController } from "./history.js";
 import { createHomeAssistantController } from "./home-assistant.js";
 import { applyDevVisibility, createDialogController } from "./modal.js";
+import { createProfilesController } from "./profiles.js";
 import { createRealtimeController } from "./realtime.js";
 import { createReplayTrainingController } from "./replay-training.js";
 import { createPanelState } from "./state.js";
@@ -22,6 +23,7 @@ const el = bindPanelDom();
 function renderAll() {
   dashboard.render();
   replayTraining.render();
+  profiles.render();
   homeAssistant.render();
   history.render();
 }
@@ -33,12 +35,20 @@ const history = createHistoryController({
   appendCell,
   appendBadgeCell,
 });
+const profiles = createProfilesController({
+  state,
+  el,
+  setMiniStatus,
+  appendBadgeCell,
+  renderAll,
+});
 const homeAssistant = createHomeAssistantController({
   state,
   el,
   appendBadgeCell,
   setMiniStatus,
   renderAll,
+  sensorSelectionController: profiles,
 });
 const dashboard = createDashboardController({
   state,
@@ -70,6 +80,7 @@ const configDialog = createDialogController({
 
 function registerActions() {
   configDialog.register();
+  profiles.registerActions();
   homeAssistant.registerActions();
   replayTraining.registerActions();
   dashboard.registerActions();
@@ -121,17 +132,17 @@ async function init() {
       true,
     ),
   );
+  await load(() => profiles.fetchProfiles({ preserveDraft: false }), (error) =>
+    setMiniStatus(
+      el.profileStatus,
+      `perfiles: ${String(error.message || error)}`,
+      true,
+    ),
+  );
   await load(homeAssistant.fetchActions, (error) =>
     setMiniStatus(
       el.haDiagnosticStatus,
       `acciones HA: ${String(error.message || error)}`,
-      true,
-    ),
-  );
-  await load(homeAssistant.fetchConfig, (error) =>
-    setMiniStatus(
-      el.realSensorStatus,
-      `sensores reales: ${String(error.message || error)}`,
       true,
     ),
   );
@@ -168,7 +179,7 @@ async function init() {
     replayTraining.fetchModelInfo().catch(() => {});
     homeAssistant.fetchCatalog().catch(() => {});
     homeAssistant.fetchActions().catch(() => {});
-    homeAssistant.fetchConfig().catch(() => {});
+    profiles.fetchProfiles().catch(() => {});
   }, 5000);
 }
 
