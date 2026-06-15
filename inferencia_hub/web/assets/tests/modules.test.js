@@ -330,6 +330,7 @@ test("profile mutations keep rooms, assignments and edges consistent", () => {
   appendProfileRoom(profile, "Pasillo");
   assert.equal(appendProfileEdge(profile, room, "pasillo"), true);
   assert.equal(profile.assignments[0].room_slug, "cocina");
+  assert.equal(profile.assignments[0].training_role, "signal");
 
   removeProfileRoom(profile, "cocina");
   assert.equal(profile.assignments.length, 0);

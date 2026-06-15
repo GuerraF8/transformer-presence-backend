@@ -23,6 +23,7 @@ from ..domain import (
     HistoryConfigInput,
     HistoryPurgeInput,
     LayoutReferenceInput,
+    LiveTrainingConfigInput,
     PresenceFilterConfigInput,
     ProfileCreateInput,
     ProfileInferLayoutInput,
@@ -56,4 +57,5 @@ profile_store = context.profiles
 ha_entity_catalog = context.catalog
 training_status = context.training_status
 training_manifests = context.manifests
+live_training_store = context.live_training
 LOGGER = logging.getLogger("inferencia_hub")

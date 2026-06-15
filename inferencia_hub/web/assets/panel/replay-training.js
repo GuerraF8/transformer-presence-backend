@@ -27,6 +27,10 @@ export function createReplayTrainingController({
     const historical = model.training_status?.historical || {};
     const supervised = model.training_status?.supervised || {};
     const supervisedFilter = model.pet_filter || {};
+    const relativeOccupancy = model.relative_occupancy || {};
+    const liveTraining = model.live_training || {};
+    const liveConfig = liveTraining.config || {};
+    const confirmations = liveTraining.confirmations || {};
     const running =
       presence.state === "running" ||
       historical.state === "running" ||
@@ -68,6 +72,31 @@ export function createReplayTrainingController({
       : "-";
     el.supervisedDataset.textContent =
       supervisedFilter.manifest_id || "Sin dataset supervisado";
+    const modelSource =
+      relativeOccupancy.source === "live_adapted" ||
+      supervisedFilter.source === "live_adapted"
+        ? "Adaptado en vivo"
+        : relativeOccupancy.enabled || supervisedFilter.enabled
+          ? "Preentrenado incluido"
+          : "Reglas";
+    el.activeModelOrigin.textContent = modelSource;
+    el.liveTrainingTotal.textContent =
+      `${formatInteger(confirmations.total || 0)} / ` +
+      `${formatInteger(liveConfig.minimum_confirmations || 500)}`;
+    el.liveTrainingPerson.textContent =
+      `${formatInteger(confirmations.person || 0)} / ` +
+      `${formatInteger(liveConfig.minimum_person_confirmations || 100)}`;
+    el.liveTrainingPet.textContent =
+      `${formatInteger(confirmations.pet || 0)} / ` +
+      `${formatInteger(liveConfig.minimum_pet_confirmations || 100)}`;
+    el.liveTrainingState.textContent = !liveConfig.enabled
+      ? "Desactivado"
+      : liveTraining.last_run?.state === "running"
+        ? "Entrenando"
+        : liveTraining.eligible
+          ? "Listo para evaluar"
+          : "Esperando confirmaciones";
+    el.liveTrainingEnabled.value = String(liveConfig.enabled !== false);
     const candidates = [presence, historical, supervised].filter(
       (item) => Object.keys(item).length,
     );
@@ -242,6 +271,7 @@ export function createReplayTrainingController({
       el.trainSupervisedBtn,
       el.validateSupervisedManifestBtn,
       el.rollbackModelBtn,
+      el.liveTrainingRunBtn,
     ]) {
       if (button) button.disabled = busy;
     }
@@ -427,6 +457,62 @@ export function createReplayTrainingController({
     }
   }
 
+  async function updateLiveTrainingConfig() {
+    const current = state.modelInfo.live_training?.config || {};
+    try {
+      await fetchJson("/api/live_training/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled: el.liveTrainingEnabled.value === "true",
+          minimum_confirmations: current.minimum_confirmations || 500,
+          minimum_person_confirmations:
+            current.minimum_person_confirmations || 100,
+          minimum_pet_confirmations: current.minimum_pet_confirmations || 100,
+          minimum_days_between_activations:
+            current.minimum_days_between_activations || 7,
+        }),
+      });
+      setMiniStatus(
+        el.liveTrainingStatus,
+        "Configuración de aprendizaje guardada",
+        false,
+      );
+      await fetchModelInfo();
+    } catch (error) {
+      setMiniStatus(
+        el.liveTrainingStatus,
+        String(error.message || error),
+        true,
+      );
+    }
+  }
+
+  async function runLiveTraining() {
+    try {
+      setTrainingBusy(true);
+      const result = await fetchJson(
+        "/api/live_training/run?force=true&trigger=manual",
+        { method: "POST" },
+      );
+      setMiniStatus(
+        el.liveTrainingStatus,
+        result.message || result.status || "Evaluación finalizada",
+        result.state === "error",
+      );
+      await fetchModelInfo();
+      await refreshSnapshot();
+    } catch (error) {
+      setMiniStatus(
+        el.liveTrainingStatus,
+        String(error.message || error),
+        true,
+      );
+    } finally {
+      setTrainingBusy(false);
+    }
+  }
+
   function registerActions() {
     el.modeListenBtn.addEventListener("click", () => setInputMode("listen"));
     el.modeReplayBtn?.addEventListener("click", () => setInputMode("replay"));
@@ -448,6 +534,11 @@ export function createReplayTrainingController({
     );
     el.trainSupervisedBtn.addEventListener("click", trainSupervised);
     el.rollbackModelBtn.addEventListener("click", rollbackModel);
+    el.liveTrainingEnabled.addEventListener(
+      "change",
+      updateLiveTrainingConfig,
+    );
+    el.liveTrainingRunBtn.addEventListener("click", runLiveTraining);
     el.supervisedManifestSelect.addEventListener("change", () => {
       el.trainSupervisedBtn.disabled = !el.supervisedManifestSelect.value;
       el.validateSupervisedManifestBtn.disabled =

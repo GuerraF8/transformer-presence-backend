@@ -93,8 +93,11 @@ export function registerProfileEvents({
     }
     const room = event.target.closest("[data-profile-entity-room]");
     const type = event.target.closest("[data-profile-entity-type]");
+    const role = event.target.closest("[data-profile-entity-role]");
     const entityId =
-      room?.dataset.profileEntityRoom || type?.dataset.profileEntityType;
+      room?.dataset.profileEntityRoom ||
+      type?.dataset.profileEntityType ||
+      role?.dataset.profileEntityRole;
     const profile = actions.draft();
     const assignment = profile?.assignments.find(
       (item) => item.entity_id === entityId,
@@ -102,6 +105,7 @@ export function registerProfileEvents({
     if (!assignment) return;
     if (room) assignment.room_slug = room.value;
     if (type) assignment.sensor_type = type.value;
+    if (role) assignment.training_role = role.value;
     actions.markDirty();
     renderProfileHeader({ state, el, profile });
   });

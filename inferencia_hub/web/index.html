@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Inferencia Presencia | Home Assistant</title>
-  <link rel="stylesheet" href="assets/styles.css?v=0.6.0" />
+  <link rel="stylesheet" href="assets/styles.css?v=0.7.0" />
 </head>
 <body>
   <div class="ha-app">
@@ -380,6 +380,7 @@
                           <th scope="col">Entidad</th>
                           <th scope="col">Área</th>
                           <th scope="col">Categoría</th>
+                          <th scope="col">Uso</th>
                           <th scope="col">Habitación</th>
                           <th scope="col">Estado</th>
                         </tr>
@@ -497,7 +498,44 @@
                     <small>Dataset activo</small>
                     <b id="supervisedDataset">-</b>
                   </div>
+                  <div class="training-status-card">
+                    <small>Modelo activo</small>
+                    <b id="activeModelOrigin">Reglas</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Confirmaciones</small>
+                    <b id="liveTrainingTotal">0 / 500</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Persona</small>
+                    <b id="liveTrainingPerson">0 / 100</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Mascota</small>
+                    <b id="liveTrainingPet">0 / 100</b>
+                  </div>
+                  <div class="training-status-card wide">
+                    <small>Adaptación automática</small>
+                    <b id="liveTrainingState">Esperando confirmaciones</b>
+                  </div>
                 </div>
+                <fieldset>
+                  <legend>Mejora automática con Frigate</legend>
+                  <p class="hint settings-card-description">Las entidades marcadas como confirmaciones enseñan al sistema a distinguir personas y mascotas. Sus estados se usan como etiquetas y no activan presencia directamente.</p>
+                  <div class="training-grid">
+                    <label>
+                      Aprendizaje en vivo
+                      <select id="liveTrainingEnabled">
+                        <option value="true">Activado</option>
+                        <option value="false">Desactivado</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="training-actions">
+                    <button id="liveTrainingRunBtn" type="button" class="secondary" data-dev-only>Evaluar ahora</button>
+                  </div>
+                  <div id="liveTrainingStatus" class="mini" role="status" aria-live="polite"></div>
+                </fieldset>
                 <div class="training-actions">
                   <button id="trainPresenceAutoBtn" type="button">Entrenar presencia automático</button>
                   <button id="trainPresenceManualBtn" type="button" class="secondary">Entrenar presencia manual</button>

@@ -264,6 +264,11 @@ class ProfileAssignmentInput(BaseModel):
     room_slug: str
     enabled: bool = True
     sensor_type: Literal["motion", "door", "occupancy", "other"] = "other"
+    training_role: Literal[
+        "signal",
+        "person_confirmation",
+        "pet_confirmation",
+    ] = "signal"
     area_id: str = ""
     area_name: str = ""
     status: Literal["active", "missing", "moved"] = "active"
@@ -298,6 +303,14 @@ class PresenceFilterConfigInput(BaseModel):
     window_seconds: int = Field(default=20, ge=1, le=600)
     min_motion_events: int = Field(default=2, ge=1, le=20)
     min_distinct_rooms: int = Field(default=1, ge=1, le=20)
+
+
+class LiveTrainingConfigInput(BaseModel):
+    enabled: bool = True
+    minimum_confirmations: int = Field(default=500, ge=20, le=100000)
+    minimum_person_confirmations: int = Field(default=100, ge=1, le=50000)
+    minimum_pet_confirmations: int = Field(default=100, ge=1, le=50000)
+    minimum_days_between_activations: int = Field(default=7, ge=1, le=365)
 
 
 class HistoryConfigInput(BaseModel):

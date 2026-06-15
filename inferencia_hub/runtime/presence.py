@@ -2,6 +2,7 @@
 
 from .shared import *  # noqa: F401,F403
 from .lifecycle import activate_listen_mode
+from .live_training import live_training_status
 
 
 def health() -> dict[str, Any]:
@@ -16,6 +17,7 @@ def health() -> dict[str, Any]:
         ),
         "presence_transformer_enabled": bool(
             hub_state.ai_model.occupancy_transformer_info.get("enabled")
+            or hub_state.ai_model.relative_occupancy_info.get("enabled")
         ),
         "input_mode": hub_state.input_mode,
         "profile": hub_state._profile_payload_locked(),
@@ -46,13 +48,6 @@ async def ingest_event(payload: SensorEventInput) -> dict[str, Any]:
         return {
             "status": "ignored",
             "reason": "no_active_profile",
-            "input_mode": hub_state.input_mode,
-        }
-    if training_manifests.is_confirmation_entity(payload.entity_id):
-        return {
-            "status": "ignored",
-            "reason": "training_confirmation_entity",
-            "entity_id": payload.entity_id,
             "input_mode": hub_state.input_mode,
         }
     source = str(payload.source or "").lower()
@@ -89,12 +84,86 @@ async def ingest_event(payload: SensorEventInput) -> dict[str, Any]:
             "reason": "unknown_event_source",
             "input_mode": hub_state.input_mode,
         }
+    assignment = hub_state.real_sensor_assignments.get(
+        str(payload.entity_id or "").strip().lower()
+    )
+    training_role = str(
+        (assignment or {}).get("training_role") or "signal"
+    )
+    if training_role in {
+        "person_confirmation",
+        "pet_confirmation",
+    }:
+        if not is_real_ha or hub_state.input_mode != "listen":
+            return {
+                "status": "ignored",
+                "reason": "confirmation_requires_listen_mode",
+                "input_mode": hub_state.input_mode,
+            }
+        if not assignment or not assignment.get("enabled", True):
+            return {
+                "status": "ignored",
+                "reason": "confirmation_not_enabled",
+                "input_mode": hub_state.input_mode,
+            }
+        timestamp = to_utc_iso(
+            payload.timestamp or datetime.now(timezone.utc)
+        )
+        confirmation_id = await asyncio.to_thread(
+            live_training_store.record_confirmation,
+            timestamp=timestamp,
+            entity_id=str(payload.entity_id).strip().lower(),
+            state=str(payload.state or "").strip().lower(),
+            training_role=training_role,
+            room=str(assignment.get("room") or ""),
+            profile_id=str(hub_state.active_profile_id or ""),
+            profile_revision=int(hub_state.active_profile_revision or 1),
+            profile_fingerprint=str(
+                hub_state.active_profile_fingerprint or ""
+            ),
+        )
+        return {
+            "status": "recorded",
+            "reason": "training_confirmation",
+            "confirmation_id": confirmation_id,
+            "training_role": training_role,
+            "room": assignment.get("room"),
+            "input_mode": hub_state.input_mode,
+        }
+    if (
+        is_real_ha
+        and hub_state.input_mode == "listen"
+        and assignment
+        and assignment.get("enabled", True)
+        and training_role == "signal"
+    ):
+        assigned_type = str(
+            assignment.get("sensor_type") or payload.sensor_type or "other"
+        )
+        if assigned_type == "auto":
+            assigned_type = str(payload.sensor_type or "other")
+        await asyncio.to_thread(
+            live_training_store.record_signal,
+            timestamp=to_utc_iso(
+                payload.timestamp or datetime.now(timezone.utc)
+            ),
+            entity_id=str(payload.entity_id).strip().lower(),
+            sensor_type=assigned_type,
+            room=str(assignment.get("room") or payload.room or ""),
+            state=str(payload.state or "").strip().lower(),
+            profile_id=str(hub_state.active_profile_id or ""),
+            profile_revision=int(hub_state.active_profile_revision or 1),
+            profile_fingerprint=str(
+                hub_state.active_profile_fingerprint or ""
+            ),
+        )
     return await hub_state.process_event(payload)
 
 
 def get_sim_data() -> dict[str, Any]:
     snapshot = hub_state.snapshot()
     snapshot["ha_entity_catalog"] = ha_entity_catalog.as_dict()
+    snapshot["live_training"] = live_training_status()
     return snapshot
 
 
@@ -118,6 +187,8 @@ def model_info() -> dict[str, Any]:
         "presence_rooms": hub_state.ai_model.occupancy_transformer_rooms,
         "presence_training_info": hub_state.ai_model.occupancy_transformer_info,
         "pet_filter": hub_state.ai_model.pet_filter_info,
+        "relative_occupancy": hub_state.ai_model.relative_occupancy_info,
+        "live_training": live_training_status(),
         "training_status": training_status,
     }
 

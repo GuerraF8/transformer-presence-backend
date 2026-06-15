@@ -8,6 +8,7 @@ import unittest
 from inferencia_hub.profile_store import (
     PresenceProfileStore,
     ProfileRevisionError,
+    normalize_profile,
     profile_fingerprint,
 )
 
@@ -47,6 +48,25 @@ def profile_payload(name: str = "Casa") -> dict:
 
 
 class PresenceProfileStoreTest(unittest.TestCase):
+    def test_existing_assignments_default_to_signal_role(self) -> None:
+        profile = normalize_profile(
+            {
+                "name": "Casa",
+                "rooms": [{"slug": "hall", "name": "Hall"}],
+                "assignments": [
+                    {
+                        "entity_id": "binary_sensor.hall_motion",
+                        "room_slug": "hall",
+                        "sensor_type": "motion",
+                    }
+                ],
+            }
+        )
+        self.assertEqual(
+            profile["assignments"][0]["training_role"],
+            "signal",
+        )
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.path = Path(self.temporary.name) / "presence_profiles.json"

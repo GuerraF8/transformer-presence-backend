@@ -22,3 +22,5 @@ class RouterModuleTest(unittest.TestCase):
         self.assertIn("/api/replay_status", declared)
         self.assertIn("/api/train_presence_supervised", declared)
         self.assertIn("/api/training/manifests", declared)
+        self.assertIn("/api/live_training/status", declared)
+        self.assertIn("/api/live_training/config", declared)

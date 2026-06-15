@@ -12,9 +12,10 @@ class PersistenceMixin:
         transformer_path = path / "next_room_transformer.pt"
         occupancy_path = path / "occupancy_transformer.pt"
         pet_filter_path = path / "pet_motion_transformer.pt"
+        relative_occupancy_path = path / "relative_occupancy_transformer.pt"
 
         payload = {
-            "schema_version": 2,
+            "schema_version": 3,
             "ready": self.ready,
             "rooms": self.rooms,
             "adjacency_neighbors": self.adjacency_neighbors,
@@ -29,6 +30,9 @@ class PersistenceMixin:
             "pet_filter_info": self.pet_filter_info,
             "pet_filter_threshold": self.pet_filter_threshold,
             "pet_filter_context_length": self.pet_filter_context_length,
+            "relative_occupancy_info": self.relative_occupancy_info,
+            "relative_occupancy_context_length": self.relative_occupancy_context_length,
+            "relative_occupancy_threshold": self.relative_occupancy_threshold,
         }
         core_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         np.save(transition_path, self.transition_matrix)
@@ -39,6 +43,7 @@ class PersistenceMixin:
             "transformer_path": None,
             "occupancy_transformer_path": None,
             "pet_filter_path": None,
+            "relative_occupancy_path": None,
         }
         if HF_AVAILABLE and self.transformer_model is not None:
             torch.save({"state_dict": self.transformer_model.state_dict()}, transformer_path)
@@ -52,6 +57,12 @@ class PersistenceMixin:
                 pet_filter_path,
             )
             saved["pet_filter_path"] = str(pet_filter_path)
+        if TORCH_AVAILABLE and self.relative_occupancy_model is not None:
+            torch.save(
+                {"state_dict": self.relative_occupancy_model.state_dict()},
+                relative_occupancy_path,
+            )
+            saved["relative_occupancy_path"] = str(relative_occupancy_path)
         return saved
 
     def load_state(self, model_dir: str | Path) -> dict[str, Any]:
@@ -61,6 +72,7 @@ class PersistenceMixin:
         transformer_path = path / "next_room_transformer.pt"
         occupancy_path = path / "occupancy_transformer.pt"
         pet_filter_path = path / "pet_motion_transformer.pt"
+        relative_occupancy_path = path / "relative_occupancy_transformer.pt"
         if not core_path.exists():
             return {"loaded": False, "reason": "sin estado persistido"}
 
@@ -105,6 +117,16 @@ class PersistenceMixin:
         self.pet_filter_threshold = float(payload.get("pet_filter_threshold") or 0.0)
         self.pet_filter_context_length = int(
             payload.get("pet_filter_context_length") or TRANSFORMER_CONTEXT_LENGTH
+        )
+        self.relative_occupancy_info = dict(
+            payload.get("relative_occupancy_info", {})
+        )
+        self.relative_occupancy_context_length = int(
+            payload.get("relative_occupancy_context_length")
+            or TRANSFORMER_CONTEXT_LENGTH
+        )
+        self.relative_occupancy_threshold = float(
+            payload.get("relative_occupancy_threshold") or 0.5
         )
 
         if transition_path.exists():
@@ -159,6 +181,35 @@ class PersistenceMixin:
             self.pet_filter_model = model
             self.pet_filter_device = device
             loaded_models.append("pet_motion_transformer")
+
+        if (
+            TORCH_AVAILABLE
+            and relative_occupancy_path.exists()
+            and self.relative_occupancy_info.get("enabled")
+        ):
+            from ..models.relative_occupancy import RelativeOccupancyTransformer
+
+            config = dict(self.relative_occupancy_info.get("model") or {})
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            model = RelativeOccupancyTransformer(
+                input_size=int(config.get("input_size") or 12),
+                context_length=int(
+                    config.get("context_length")
+                    or self.relative_occupancy_context_length
+                ),
+                count_classes=int(config.get("count_classes") or 5),
+                hidden_size=int(config.get("hidden_size") or 48),
+            ).to(device)
+            checkpoint = torch.load(
+                relative_occupancy_path,
+                map_location=device,
+                weights_only=True,
+            )
+            model.load_state_dict(checkpoint["state_dict"])
+            model.eval()
+            self.relative_occupancy_model = model
+            self.relative_occupancy_device = device
+            loaded_models.append("relative_occupancy_transformer")
 
         return {
             "loaded": True,

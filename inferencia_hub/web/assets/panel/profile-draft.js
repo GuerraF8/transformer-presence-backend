@@ -1,4 +1,9 @@
 export const SENSOR_TYPES = ["motion", "door", "occupancy", "other"];
+export const TRAINING_ROLES = [
+  ["signal", "Señal de inferencia"],
+  ["person_confirmation", "Confirmación de persona"],
+  ["pet_confirmation", "Confirmación de mascota"],
+];
 
 export function cloneProfile(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));

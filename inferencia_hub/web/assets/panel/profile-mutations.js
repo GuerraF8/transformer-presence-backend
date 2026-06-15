@@ -64,6 +64,7 @@ export function setProfileEntity(profile, entity, enabled) {
       sensor_type: SENSOR_TYPES.includes(entity.sensor_type)
         ? entity.sensor_type
         : "other",
+      training_role: "signal",
       area_id: entity.area_id || "",
       area_name: entity.area_name || "",
       status: "active",

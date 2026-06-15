@@ -39,10 +39,13 @@ class ApplicationContextTest(unittest.TestCase):
             "/api/train_presence_supervised",
             "/api/training/manifests",
             "/api/model/rollback",
+            "/api/live_training/status",
+            "/api/live_training/config",
+            "/api/live_training/run",
             "/api/replay_csv",
             "/presencia",
         }
-        self.assertEqual(app.version, "0.6.0")
+        self.assertEqual(app.version, "0.7.0")
         self.assertIs(create_app(), app)
         self.assertTrue(expected.issubset(paths))
         self.assertIs(app.state.context.hub, app.state.context.hub)

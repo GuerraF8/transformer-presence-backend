@@ -28,6 +28,11 @@ class AIAdjacencyModel(PersistenceMixin, TransitionsMixin, SimulationMixin, Occu
         self.occupancy_transformer_rooms: list[str] = []
         self.occupancy_transformer_info: dict[str, Any] = {}
         self.occupancy_transformer_count_classes = 0
+        self.relative_occupancy_model: Any | None = None
+        self.relative_occupancy_device: Any | None = None
+        self.relative_occupancy_context_length = TRANSFORMER_CONTEXT_LENGTH
+        self.relative_occupancy_threshold = 0.5
+        self.relative_occupancy_info: dict[str, Any] = {}
         self.real_profile_info: dict[str, Any] = {}
         self.pet_filter_model: Any | None = None
         self.pet_filter_device: Any | None = None
@@ -46,3 +51,11 @@ class AIAdjacencyModel(PersistenceMixin, TransitionsMixin, SimulationMixin, Occu
 
     def neighbors(self, room: str) -> list[str]:
         return self.adjacency_neighbors.get(room, [])
+
+    def load_packaged_relative_occupancy(
+        self,
+        artifact_dir: str | None = None,
+    ) -> dict[str, Any]:
+        from ..relative_occupancy import load_packaged_relative_occupancy
+
+        return load_packaged_relative_occupancy(self, artifact_dir)

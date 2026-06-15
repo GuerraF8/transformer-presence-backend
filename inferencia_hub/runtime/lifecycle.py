@@ -370,8 +370,11 @@ def mark_training_status(
 
 async def startup_train_model() -> None:
     from .profiles import _apply_profile, initialize_profiles
+    from .live_training import start_live_training_scheduler
 
     await history_store.start()
+    await asyncio.to_thread(live_training_store.initialize)
+    start_live_training_scheduler()
     load_training_status()
     active_profile = await asyncio.to_thread(
         initialize_profiles,
@@ -426,4 +429,7 @@ async def startup_train_model() -> None:
 
 
 async def shutdown_history_store() -> None:
+    from .live_training import stop_live_training_scheduler
+
+    await stop_live_training_scheduler()
     await history_store.stop()

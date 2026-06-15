@@ -8,6 +8,10 @@ from typing import Any
 from fastapi import WebSocket
 
 from .history_store import HistoryStore, history_store_from_env
+from .live_training_store import (
+    LiveTrainingStore,
+    live_training_store_from_env,
+)
 from .hub_state import InferenceHubState
 from .profile_store import PresenceProfileStore, profile_store_from_env
 from .supervised.manifest import TrainingManifestStore
@@ -169,6 +173,9 @@ class ApplicationContext:
     websocket: WebSocketBroker = field(default_factory=WebSocketBroker)
     manifests: TrainingManifestStore = field(
         default_factory=TrainingManifestStore
+    )
+    live_training: LiveTrainingStore = field(
+        default_factory=live_training_store_from_env
     )
     training_status: dict[str, dict[str, Any]] = field(
         default_factory=default_training_status

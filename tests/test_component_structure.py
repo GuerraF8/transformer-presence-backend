@@ -83,6 +83,8 @@ class ComponentStructureTest(unittest.TestCase):
         self.assertIn("replay_csv", HANDLERS)
         self.assertIn("train_model", HANDLERS)
         self.assertIn("train_presence_supervised", HANDLERS)
+        self.assertIn("live_training_status", HANDLERS)
+        self.assertIn("run_live_training", HANDLERS)
         self.assertIs(hub_state.event_sink, persist_history_event)
 
     def test_exported_hub_state_includes_required_operations(self) -> None:

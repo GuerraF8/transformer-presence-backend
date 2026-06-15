@@ -1,4 +1,4 @@
-import { SENSOR_TYPES } from "./profile-draft.js";
+import { SENSOR_TYPES, TRAINING_ROLES } from "./profile-draft.js";
 
 function filteredEntities(state, el, entities) {
   const query = String(el.realSensorSearchInput?.value || "")
@@ -51,7 +51,7 @@ export function renderProfileEntities({
   if (!profile) {
     const row = documentRef.createElement("tr");
     const cell = documentRef.createElement("td");
-    cell.colSpan = 6;
+    cell.colSpan = 7;
     cell.textContent = "Selecciona o crea un perfil para asignar entidades.";
     row.appendChild(cell);
     el.haSensorList.appendChild(row);
@@ -66,6 +66,8 @@ export function renderProfileEntities({
     `${areas.length} áreas / ${entities.length} entidades`;
   el.realSensorSummary.textContent =
     `${(profile.assignments || []).filter((item) => item.enabled).length} entidades confirmadas / ` +
+    `${(profile.assignments || []).filter((item) => item.enabled && item.training_role === "person_confirmation").length} persona / ` +
+    `${(profile.assignments || []).filter((item) => item.enabled && item.training_role === "pet_confirmation").length} mascota / ` +
     `${(profile.rooms || []).length} habitaciones`;
   el.realSensorApplyBtn.disabled = !state.profiles.dirty;
   el.realSensorResetBtn.disabled = !state.profiles.dirty;
@@ -73,7 +75,7 @@ export function renderProfileEntities({
   if (!visible.length) {
     const row = documentRef.createElement("tr");
     const cell = documentRef.createElement("td");
-    cell.colSpan = 6;
+    cell.colSpan = 7;
     cell.textContent = "No hay entidades para el filtro seleccionado.";
     row.appendChild(cell);
     el.haSensorList.appendChild(row);
@@ -119,6 +121,18 @@ export function renderProfileEntities({
     );
     typeCell.appendChild(type);
     row.appendChild(typeCell);
+
+    const roleCell = documentRef.createElement("td");
+    const role = documentRef.createElement("select");
+    role.dataset.profileEntityRole = entity.entity_id;
+    role.disabled = !assignment?.enabled;
+    role.setAttribute("aria-label", `Uso de ${entity.entity_id}`);
+    for (const [value, label] of TRAINING_ROLES) {
+      role.add(new Option(label, value));
+    }
+    role.value = assignment?.training_role || "signal";
+    roleCell.appendChild(role);
+    row.appendChild(roleCell);
 
     const roomCell = documentRef.createElement("td");
     const room = documentRef.createElement("select");

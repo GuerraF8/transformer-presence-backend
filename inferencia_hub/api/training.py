@@ -13,6 +13,9 @@ PATHS = {
     "/api/training/manifests/validate",
     "/api/training/reports/{run_id}",
     "/api/model/rollback",
+    "/api/live_training/status",
+    "/api/live_training/config",
+    "/api/live_training/run",
     "/api/training_exports/{filename}",
 }
 
@@ -40,6 +43,34 @@ def build_router(handlers: HandlerMap) -> APIRouter:
         methods=["GET"],
         tags=["06 Entrenamiento"],
         summary="Listar manifiestos de entrenamiento",
+    )
+    router.add_api_route(
+        "/api/live_training/status",
+        endpoint(handlers, "live_training_status"),
+        methods=["GET"],
+        tags=["06 Entrenamiento"],
+        summary="Consultar aprendizaje en vivo",
+    )
+    router.add_api_route(
+        "/api/live_training/config",
+        endpoint(handlers, "get_live_training_config"),
+        methods=["GET"],
+        tags=["06 Entrenamiento"],
+        summary="Consultar configuración del aprendizaje en vivo",
+    )
+    router.add_api_route(
+        "/api/live_training/config",
+        endpoint(handlers, "update_live_training_config"),
+        methods=["PUT"],
+        tags=["06 Entrenamiento"],
+        summary="Actualizar configuración del aprendizaje en vivo",
+    )
+    router.add_api_route(
+        "/api/live_training/run",
+        endpoint(handlers, "run_live_training"),
+        methods=["POST"],
+        tags=["06 Entrenamiento"],
+        summary="Evaluar y adaptar el modelo con confirmaciones",
     )
     router.add_api_route(
         "/api/training/reports/{run_id}",

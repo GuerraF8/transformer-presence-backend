@@ -111,6 +111,7 @@ class SnapshotMixin:
                 "training_info": self.ai_model.training_info,
                 "rejected_transitions": self.rejected_transitions,
                 "pet_filter": self.ai_model.pet_filter_info,
+                "relative_occupancy": self.ai_model.relative_occupancy_info,
             },
         }
 

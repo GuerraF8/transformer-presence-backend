@@ -303,6 +303,16 @@ class OccupancyMixin:
         history_events: list[EventRecord],
         future_timestamp: datetime,
     ) -> dict[str, Any] | None:
+        from ..relative_occupancy import relative_occupancy_prediction
+
+        relative = relative_occupancy_prediction(
+            self,
+            history_events,
+            sorted(self.adjacency_neighbors),
+            self.adjacency_neighbors,
+        )
+        if relative is not None:
+            return relative
         if not self.occupancy_transformer_model or not HF_AVAILABLE:
             return None
         if len(history_events) < self.transformer_context_length:

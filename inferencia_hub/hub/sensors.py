@@ -12,6 +12,9 @@ class SensorsMixin:
                     "room": str(config.get("room") or ""),
                     "enabled": bool(config.get("enabled", True)),
                     "sensor_type": str(config.get("sensor_type") or "auto"),
+                    "training_role": str(
+                        config.get("training_role") or "signal"
+                    ),
                 }
                 for entity_id, config in self.real_sensor_assignments.items()
             ],
@@ -55,6 +58,7 @@ class SensorsMixin:
                     "room": room,
                     "enabled": bool(assignment.enabled),
                     "sensor_type": sensor_type if sensor_type in {"auto", "motion", "door", "occupancy", "other"} else "auto",
+                    "training_role": "signal",
                 }
 
             self.real_sensor_rooms = rooms
@@ -85,6 +89,7 @@ class SensorsMixin:
                 "room": room,
                 "enabled": bool(assignment.enabled),
                 "sensor_type": str(assignment.sensor_type or "auto"),
+                "training_role": "signal",
             }
         if rooms:
             self.real_sensor_rooms = rooms

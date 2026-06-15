@@ -165,6 +165,7 @@ def _detected_profile(req: ProfileCreateInput) -> dict[str, Any]:
                 "room_slug": room_slug,
                 "enabled": True,
                 "sensor_type": sensor_type,
+                "training_role": "signal",
                 "area_id": area_id,
                 "area_name": str(entity.get("area_name") or ""),
                 "status": "active",
@@ -199,6 +200,7 @@ def _build_profile(req: ProfileCreateInput) -> dict[str, Any]:
 
 
 async def _apply_profile(profile: dict[str, Any]) -> None:
+    persist_packaged_model = False
     async with hub_state.lock:
         hub_state.apply_profile(profile)
         candidate = hub_state.ai_model
@@ -229,7 +231,50 @@ async def _apply_profile(profile: dict[str, Any]) -> None:
             await asyncio.to_thread(
                 candidate.load_packaged_pet_filter,
             )
+        if (
+            getattr(candidate, "relative_occupancy_model", None)
+            is None
+            and getattr(candidate, "occupancy_transformer_model", None)
+            is None
+            and hasattr(candidate, "load_packaged_relative_occupancy")
+        ):
+            loaded_relative = await asyncio.to_thread(
+                candidate.load_packaged_relative_occupancy,
+            )
+            persist_packaged_model = bool(loaded_relative.get("loaded"))
+        candidate.rooms = sorted(hub_state.reference_layout)
+        candidate.room_to_idx = {
+            room: index for index, room in enumerate(candidate.rooms)
+        }
+        transition_matrix = getattr(
+            candidate,
+            "transition_matrix",
+            np.zeros((0, 0), dtype=np.float32),
+        )
+        if transition_matrix.shape != (
+            len(candidate.rooms),
+            len(candidate.rooms),
+        ):
+            candidate.transition_matrix = np.eye(
+                len(candidate.rooms),
+                dtype=np.float32,
+            )
+        candidate.adjacency_neighbors = {
+            room: list(neighbors)
+            for room, neighbors in hub_state.reference_layout.items()
+        }
+        candidate.ready = bool(candidate.rooms)
         hub_state.ai_model = candidate
+        if persist_packaged_model:
+            candidate.training_info["profile_fingerprint"] = (
+                hub_state.active_profile_fingerprint
+            )
+            hub_state.active_profile_model_compatible = True
+    if persist_packaged_model:
+        await asyncio.to_thread(
+            candidate.save_state,
+            _profile_model_dir(profile["id"]),
+        )
     await hub_state.broadcast_snapshot()
 
 
@@ -385,7 +430,7 @@ async def reconcile_profiles_with_catalog() -> dict[str, int]:
         next_profile["rooms"] = [dict(room) for room in profile.get("rooms", [])]
         next_profile["areas"] = [dict(area) for area in profile.get("areas", [])]
         next_profile["assignments"] = [
-            dict(item) for item in profile.get("assignments", [])
+                    dict(item) for item in profile.get("assignments", [])
         ]
         profile_changed = False
         for area in next_profile["areas"]:
@@ -517,6 +562,12 @@ def _legacy_profile_payload(payload: dict[str, Any]) -> dict[str, Any]:
                     sensor_type
                     if sensor_type in {"motion", "door", "occupancy", "other"}
                     else "other"
+                ),
+                "training_role": (
+                    str(item.get("training_role") or "signal")
+                    if str(item.get("training_role") or "signal")
+                    in {"signal", "person_confirmation", "pet_confirmation"}
+                    else "signal"
                 ),
                 "status": "active",
                 "unique_id": "",

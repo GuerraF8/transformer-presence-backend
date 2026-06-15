@@ -36,6 +36,9 @@ class ProfilesMixin:
                 "enabled": bool(item.get("enabled", True))
                 and str(item.get("status") or "active") == "active",
                 "sensor_type": str(item.get("sensor_type") or "other"),
+                "training_role": str(
+                    item.get("training_role") or "signal"
+                ),
                 "area_id": str(item.get("area_id") or ""),
                 "status": str(item.get("status") or "active"),
                 "warning": str(item.get("warning") or ""),
@@ -67,6 +70,19 @@ class ProfilesMixin:
             if isinstance(room, dict)
             and normalize_room_name(str(room.get("slug") or ""))
         }
+        self.ai_model.rooms = sorted(rooms)
+        self.ai_model.room_to_idx = {
+            room: index for index, room in enumerate(self.ai_model.rooms)
+        }
+        self.ai_model.transition_matrix = np.eye(
+            len(self.ai_model.rooms),
+            dtype=np.float32,
+        )
+        self.ai_model.adjacency_neighbors = {
+            room: list(neighbors)
+            for room, neighbors in self.reference_layout.items()
+        }
+        self.ai_model.ready = bool(rooms)
 
     def clear_active_profile(self) -> None:
         self._reset_transient_locked()

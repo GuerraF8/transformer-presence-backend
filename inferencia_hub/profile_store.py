@@ -43,6 +43,7 @@ def profile_fingerprint(profile: dict[str, Any]) -> str:
                 str(item.get("entity_id") or ""),
                 str(item.get("room_slug") or ""),
                 str(item.get("sensor_type") or ""),
+                str(item.get("training_role") or "signal"),
                 bool(item.get("enabled", True)),
             )
             for item in profile.get("assignments", [])
@@ -99,6 +100,10 @@ def normalize_profile(profile: dict[str, Any]) -> dict[str, Any]:
             "room_slug": str(item.get("room_slug") or "").strip().lower(),
             "enabled": bool(item.get("enabled", True)),
             "sensor_type": str(item.get("sensor_type") or "other"),
+            "training_role": str(item.get("training_role") or "signal")
+            if str(item.get("training_role") or "signal")
+            in {"signal", "person_confirmation", "pet_confirmation"}
+            else "signal",
             "area_id": str(item.get("area_id") or ""),
             "area_name": str(item.get("area_name") or ""),
             "status": str(item.get("status") or "active"),

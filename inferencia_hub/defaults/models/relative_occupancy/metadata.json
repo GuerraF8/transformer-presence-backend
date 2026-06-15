@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "artifact_id": "relative-occupancy-c293bc752c48-seed42",
+  "dataset_fingerprint": "c293bc752c48109380feb055cd01e09f81b8a8599bd8ebc14085d951b7381bd7",
+  "checkpoint_sha256": "7cae81ce6caff76ecafffb1c45718b4e92c4f1236f2d89c05705d13a6fe9e251",
+  "threshold": 0.53,
+  "trained_at": "2026-06-15T02:29:50.138676Z",
+  "model": {
+    "kind": "relative_transformer",
+    "input_size": 12,
+    "context_length": 28,
+    "count_classes": 5,
+    "hidden_size": 48
+  },
+  "training": {
+    "epochs": 3,
+    "seed": 42,
+    "synthetic_samples": 5000,
+    "supervised_samples": 30135,
+    "manifest_id": "person_pet_foyer",
+    "loss": 0.844676,
+    "torch_version": "2.9.1+cpu"
+  },
+  "metrics": {
+    "room_precision": 0.5287,
+    "room_recall": 0.8332,
+    "room_f1": 0.6469,
+    "count_accuracy": 0.7465
+  }
+}
