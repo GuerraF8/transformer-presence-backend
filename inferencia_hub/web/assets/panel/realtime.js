@@ -45,8 +45,15 @@ export function applySnapshotState(state, simData) {
     state.roomLabels = { ...simData.profile.room_labels };
   }
   if (simData.meta?.input_mode) state.replay.mode = simData.meta.input_mode;
+  if (simData.meta?.backend_version) {
+    state.backendVersion = String(simData.meta.backend_version);
+  }
   const presence = simData.presence;
   if (presence && typeof presence === "object") {
+    const peopleEstimate = Number(presence.people_estimate || 0);
+    state.peopleEstimate = Number.isFinite(peopleEstimate)
+      ? Math.max(0, peopleEstimate)
+      : 0;
     if (presence.current_room) state.currentRoom = String(presence.current_room);
     if (Array.isArray(presence.active_rooms)) {
       state.activeRooms = presence.active_rooms.map(String).filter(Boolean);
@@ -83,6 +90,9 @@ export function applyEventState(state, event) {
     state.rooms.sort();
   }
   state.currentRoom = event.presence_room || event.room || state.currentRoom;
+  if (Number.isFinite(Number(event.estimated_people))) {
+    state.peopleEstimate = Math.max(0, Number(event.estimated_people));
+  }
   state.activeRooms = event.active_rooms?.length
     ? event.active_rooms.map(String).filter(Boolean)
     : state.currentRoom

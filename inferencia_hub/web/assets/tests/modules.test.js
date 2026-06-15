@@ -253,12 +253,19 @@ test("realtime reducers update snapshots and events without DOM", () => {
     rooms: ["kitchen"],
     profile: { room_labels: { kitchen: "Cocina principal" } },
     events: [],
-    presence: { current_room: "kitchen", active_rooms: ["kitchen"] },
+    meta: { backend_version: "0.7.0" },
+    presence: {
+      current_room: "kitchen",
+      active_rooms: ["kitchen"],
+      people_estimate: 2,
+    },
     inferred_layout_live: {
       edges: [{ a: "kitchen", b: "living", support: 2 }],
     },
   });
   assert.equal(state.currentRoom, "kitchen");
+  assert.equal(state.peopleEstimate, 2);
+  assert.equal(state.backendVersion, "0.7.0");
   assert.equal(state.roomLabels.kitchen, "Cocina principal");
   assert.equal(state.inferredEdges.get("kitchen|living"), 2);
 
@@ -267,9 +274,11 @@ test("realtime reducers update snapshots and events without DOM", () => {
     state: "on",
     sensor_type: "occupancy",
     active_rooms: ["living"],
+    estimated_people: 1,
   });
   assert.deepEqual(state.activeRooms, ["living"]);
   assert.deepEqual(state.occupancyRooms, ["living"]);
+  assert.equal(state.peopleEstimate, 1);
 });
 
 test("profile draft helpers preserve stable slugs and update contracts", () => {

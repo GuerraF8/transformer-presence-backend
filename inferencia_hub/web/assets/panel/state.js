@@ -4,6 +4,8 @@ export function createPanelState() {
     rooms: [],
     events: [],
     currentRoom: null,
+    peopleEstimate: 0,
+    backendVersion: "-",
     activeRooms: [],
     occupancyRooms: [],
     liveSensorRooms: [],

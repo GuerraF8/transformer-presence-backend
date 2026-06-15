@@ -5,9 +5,14 @@ from datetime import datetime, timezone
 
 from inferencia_hub.domain import PresenceFilterConfigInput, SensorEventInput
 from inferencia_hub.hub_state import InferenceHubState
+from inferencia_hub.version import BACKEND_VERSION
 
 
 class HubStateContractTest(unittest.IsolatedAsyncioTestCase):
+    async def test_snapshot_exposes_backend_version(self) -> None:
+        snapshot = InferenceHubState().snapshot()
+        self.assertEqual(snapshot["meta"]["backend_version"], BACKEND_VERSION)
+
     async def test_profile_supports_arbitrary_rooms_and_clears_state(self) -> None:
         hub = InferenceHubState()
         profile = {

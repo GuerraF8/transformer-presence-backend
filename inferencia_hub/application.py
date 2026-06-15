@@ -14,6 +14,7 @@ from .api.registry import include_domain_routers
 from .runtime import *  # noqa: F401,F403
 from .runtime import HANDLERS, shutdown_history_store, startup_train_model
 from .runtime.shared import context
+from .version import BACKEND_VERSION
 from .web_paths import resolve_web_dir
 
 TAG_STATUS = "01 Estado"
@@ -49,7 +50,7 @@ WEB_DIR = resolve_web_dir()
 def _create_base_app() -> FastAPI:
     application = FastAPI(
         title="Inferencia Presencia Hub",
-        version="0.7.0",
+        version=BACKEND_VERSION,
         openapi_tags=OPENAPI_TAGS,
     )
     application.state.context = context

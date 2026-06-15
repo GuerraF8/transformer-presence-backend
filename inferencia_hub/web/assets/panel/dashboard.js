@@ -34,6 +34,8 @@ export function createDashboardController({
     const people = state.metrics?.people || {};
     el.peopleNow.textContent = String(Number(people.current_estimate || 0));
     el.peopleMax.textContent = String(Number(people.max_observed || 0));
+    el.peopleSummary.textContent = String(Number(state.peopleEstimate || 0));
+    el.backendVersion.textContent = String(state.backendVersion || "-");
   }
 
   function renderMetrics() {

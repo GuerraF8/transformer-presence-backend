@@ -1,6 +1,7 @@
 """Generación de snapshots, reinicio y publicación del estado."""
 
 from .dependencies import *  # noqa: F401,F403
+from ..version import BACKEND_VERSION
 
 
 class SnapshotMixin:
@@ -50,6 +51,7 @@ class SnapshotMixin:
         return {
             "schema_version": "2.0-ai-live",
             "meta": {
+                "backend_version": BACKEND_VERSION,
                 "source_csv": self.ai_model.training_info.get("csv_path"),
                 "input_mode": self.input_mode,
                 "events_total": len(self.events),
