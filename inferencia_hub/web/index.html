@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Inferencia Presencia | Home Assistant</title>
-  <link rel="stylesheet" href="assets/styles.css?v=0.5.0" />
+  <link rel="stylesheet" href="assets/styles.css?v=0.6.0" />
 </head>
 <body>
   <div class="ha-app">
@@ -481,12 +481,46 @@
                     <small>Ultima actualizacion</small>
                     <b id="trainingUpdatedAt">-</b>
                   </div>
+                  <div class="training-status-card">
+                    <small>Filtro supervisado</small>
+                    <b id="supervisedTrainState">No entrenado</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Recall humano</small>
+                    <b id="supervisedHumanRecall">-</b>
+                  </div>
+                  <div class="training-status-card">
+                    <small>Supresión mascota</small>
+                    <b id="supervisedPetSuppression">-</b>
+                  </div>
+                  <div class="training-status-card wide">
+                    <small>Dataset activo</small>
+                    <b id="supervisedDataset">-</b>
+                  </div>
                 </div>
                 <div class="training-actions">
                   <button id="trainPresenceAutoBtn" type="button">Entrenar presencia automático</button>
                   <button id="trainPresenceManualBtn" type="button" class="secondary">Entrenar presencia manual</button>
                   <button id="trainHistoricalBtn" type="button" class="secondary">Entrenar histórico CSV</button>
                 </div>
+                <fieldset>
+                  <legend>Entrenamiento con confirmaciones</legend>
+                  <p class="hint settings-card-description">Usa detecciones confirmadas de persona y mascota para aprender cuándo un evento de movimiento representa presencia humana. Las confirmaciones se excluyen de las entradas disponibles durante la inferencia.</p>
+                  <div class="training-grid">
+                    <label>
+                      Manifiesto local
+                      <select id="supervisedManifestSelect" aria-describedby="supervisedManifestStatus">
+                        <option value="">Sin manifiestos disponibles</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="training-actions">
+                    <button id="validateSupervisedManifestBtn" type="button" class="secondary">Validar datos</button>
+                    <button id="trainSupervisedBtn" type="button">Entrenar y activar</button>
+                    <button id="rollbackModelBtn" type="button" class="secondary">Restaurar modelo anterior</button>
+                  </div>
+                  <div id="supervisedManifestStatus" class="mini" role="status" aria-live="polite"></div>
+                </fieldset>
                 <div class="training-grid">
                   <label>
                     Secuencias generadas

@@ -9,7 +9,7 @@ ENV PIP_DEFAULT_TIMEOUT=120
 
 WORKDIR /app
 
-ARG INSTALL_ML=0
+ARG INSTALL_ML=1
 
 COPY inferencia_hub/requirements-base.txt /app/requirements-base.txt
 COPY inferencia_hub/requirements-ml.txt /app/requirements-ml.txt

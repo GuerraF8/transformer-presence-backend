@@ -6,6 +6,10 @@ Servicio externo para inferencia de presencia + visualizacion en vivo.
 
 - API de ingesta de eventos: `POST /api/events`
 - Entrenamiento de mapa desde historial CSV: `POST /api/train_model`
+- Entrenamiento supervisado de presencia: `POST /api/train_presence_supervised`
+- Manifiestos y reportes: `GET /api/training/manifests` y
+  `GET /api/training/reports/{run_id}`
+- Restauracion del modelo anterior: `POST /api/model/rollback`
 - Inspeccion de modelo activo: `GET /api/model_info`
 - Plantillas de escenarios para replay: `GET /api/scenario_templates`
 - Layout de referencia editable (mapa real): `GET/POST /api/layout_reference`
@@ -93,6 +97,51 @@ Los valores editables quedan guardados en SQLite. Cambiar `HISTORY_DB_PATH`
 requiere reiniciar. `POST /api/reset` conserva el historial.
 
 ## Entrenar modelo desde historial
+
+### Confirmaciones de persona y mascota
+
+La version 0.6.0 incluye un manifiesto local para combinar
+`history-1mes.csv`, `hall-cat+person-occupancy-nov2025.csv` y
+`occupancymovementsincemay.csv`. Las detecciones de Frigate generan etiquetas,
+pero sus entidades no forman parte de las features ni se aceptan durante la
+inferencia.
+
+```bash
+curl -X POST http://localhost:8080/api/training/manifests/validate \
+  -H "Content-Type: application/json" \
+  -d '{"manifest_id":"person_pet_foyer"}'
+
+curl -X POST http://localhost:8080/api/train_presence_supervised \
+  -H "Content-Type: application/json" \
+  -d '{
+    "manifest_id": "person_pet_foyer",
+    "epochs": 5,
+    "seed": 42,
+    "min_human_recall": 0.98,
+    "synthetic_scenarios": 120,
+    "synthetic_steps": 60,
+    "max_samples": 15000
+  }'
+```
+
+Cada ejecucion guarda un reporte por periodo y global con precision, recall,
+F1, supresion de eventos solo-mascota, falsos descartes humanos y metricas de
+ocupacion. El artefacto se activa al finalizar y conserva la version anterior.
+
+El backend distribuido carga automaticamente el artefacto
+`person_pet_foyer-c293bc752c48-seed42` al activar un perfil que todavia no tenga
+un filtro personalizado. En el panel aparece como `Activo incluido`, junto con
+su recall y supresion medidos. No es necesario conservar los CSV ni volver a
+entrenar en la instalacion del usuario.
+
+La imagen publicada instala las dependencias ML de forma predeterminada. Para
+construir una variante liviana que use solo reglas temporales:
+
+```bash
+docker build -f inferencia_hub/Dockerfile \
+  --build-arg INSTALL_ML=0 \
+  -t transformer-presence-backend:slim .
+```
 
 ### Opción 1: Entrenamiento Estándar (Rápido)
 

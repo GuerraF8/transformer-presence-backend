@@ -16,10 +16,21 @@ import requests
 
 try:
     import torch
+    import torch.nn as nn
+
+    TORCH_AVAILABLE = True
+except Exception:
+    torch = None
+    nn = None
+    TORCH_AVAILABLE = False
+
+try:
     from ..models.transformers import NextRoomTransformer, OccupancyTransformer
 
-    HF_AVAILABLE = True
+    HF_AVAILABLE = TORCH_AVAILABLE
 except Exception:
+    NextRoomTransformer = None
+    OccupancyTransformer = None
     HF_AVAILABLE = False
 
 try:

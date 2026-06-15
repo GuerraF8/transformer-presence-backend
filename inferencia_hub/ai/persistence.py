@@ -11,9 +11,10 @@ class PersistenceMixin:
         transition_path = path / "transition_matrix.npy"
         transformer_path = path / "next_room_transformer.pt"
         occupancy_path = path / "occupancy_transformer.pt"
+        pet_filter_path = path / "pet_motion_transformer.pt"
 
         payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "ready": self.ready,
             "rooms": self.rooms,
             "adjacency_neighbors": self.adjacency_neighbors,
@@ -25,6 +26,9 @@ class PersistenceMixin:
             "occupancy_transformer_info": self.occupancy_transformer_info,
             "occupancy_transformer_count_classes": self.occupancy_transformer_count_classes,
             "real_profile_info": self.real_profile_info,
+            "pet_filter_info": self.pet_filter_info,
+            "pet_filter_threshold": self.pet_filter_threshold,
+            "pet_filter_context_length": self.pet_filter_context_length,
         }
         core_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         np.save(transition_path, self.transition_matrix)
@@ -34,6 +38,7 @@ class PersistenceMixin:
             "transition_path": str(transition_path),
             "transformer_path": None,
             "occupancy_transformer_path": None,
+            "pet_filter_path": None,
         }
         if HF_AVAILABLE and self.transformer_model is not None:
             torch.save({"state_dict": self.transformer_model.state_dict()}, transformer_path)
@@ -41,6 +46,12 @@ class PersistenceMixin:
         if HF_AVAILABLE and self.occupancy_transformer_model is not None:
             torch.save({"state_dict": self.occupancy_transformer_model.state_dict()}, occupancy_path)
             saved["occupancy_transformer_path"] = str(occupancy_path)
+        if TORCH_AVAILABLE and self.pet_filter_model is not None:
+            torch.save(
+                {"state_dict": self.pet_filter_model.state_dict()},
+                pet_filter_path,
+            )
+            saved["pet_filter_path"] = str(pet_filter_path)
         return saved
 
     def load_state(self, model_dir: str | Path) -> dict[str, Any]:
@@ -49,6 +60,7 @@ class PersistenceMixin:
         transition_path = path / "transition_matrix.npy"
         transformer_path = path / "next_room_transformer.pt"
         occupancy_path = path / "occupancy_transformer.pt"
+        pet_filter_path = path / "pet_motion_transformer.pt"
         if not core_path.exists():
             return {"loaded": False, "reason": "sin estado persistido"}
 
@@ -73,6 +85,27 @@ class PersistenceMixin:
         self.occupancy_transformer_info = dict(payload.get("occupancy_transformer_info", {}))
         self.occupancy_transformer_count_classes = int(payload.get("occupancy_transformer_count_classes") or 0)
         self.real_profile_info = dict(payload.get("real_profile_info", {}))
+        self.pet_filter_info = dict(payload.get("pet_filter_info", {}))
+        if (
+            self.pet_filter_info.get("enabled")
+            and not self.pet_filter_info.get("suppression_enabled")
+            and dict(self.pet_filter_info.get("test") or {}).get(
+                "activation_guard"
+            )
+        ):
+            self.pet_filter_info["suppression_enabled"] = True
+            self.pet_filter_info["activation_policy"] = (
+                "operational_preference"
+            )
+            self.pet_filter_info["previous_activation_guard"] = (
+                self.pet_filter_info["test"].pop(
+                    "activation_guard"
+                )
+            )
+        self.pet_filter_threshold = float(payload.get("pet_filter_threshold") or 0.0)
+        self.pet_filter_context_length = int(
+            payload.get("pet_filter_context_length") or TRANSFORMER_CONTEXT_LENGTH
+        )
 
         if transition_path.exists():
             self.transition_matrix = np.load(transition_path).astype(np.float32)
@@ -107,6 +140,25 @@ class PersistenceMixin:
             self.occupancy_transformer_model = model
             self.occupancy_transformer_device = device
             loaded_models.append("occupancy_transformer")
+
+        if (
+            TORCH_AVAILABLE
+            and pet_filter_path.exists()
+            and self.pet_filter_info.get("enabled")
+        ):
+            from ..models.pet_filter import PetMotionTransformer
+
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            model = PetMotionTransformer(
+                input_size=int(self.pet_filter_info.get("input_size") or 12),
+                context_length=self.pet_filter_context_length,
+            ).to(device)
+            checkpoint = torch.load(pet_filter_path, map_location=device)
+            model.load_state_dict(checkpoint["state_dict"])
+            model.eval()
+            self.pet_filter_model = model
+            self.pet_filter_device = device
+            loaded_models.append("pet_motion_transformer")
 
         return {
             "loaded": True,

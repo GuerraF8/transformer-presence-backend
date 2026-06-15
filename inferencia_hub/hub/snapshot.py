@@ -110,6 +110,7 @@ class SnapshotMixin:
                 "compatible": self.active_profile_model_compatible,
                 "training_info": self.ai_model.training_info,
                 "rejected_transitions": self.rejected_transitions,
+                "pet_filter": self.ai_model.pet_filter_info,
             },
         }
 

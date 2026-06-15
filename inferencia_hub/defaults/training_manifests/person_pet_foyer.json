@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "id": "person_pet_foyer",
+  "name": "Confirmaciones persona y mascota · foyer",
+  "description": "Combina el historial del hogar con confirmaciones de Frigate para distinguir movimiento humano y de mascota.",
+  "label_window": {
+    "before_seconds": 10,
+    "after_seconds": 20
+  },
+  "weak_negative_weight": 0.15,
+  "file_hashes": {
+    "history-1mes.csv": "2f0b1cc3e9d99b00dfe70c83aca72e2172d1d9ee9e616193ff86d8b33f391b13",
+    "hall-cat+person-occupancy-nov2025.csv": "88894c74386d7126ce9a5f7cede89726eef0d72e0005b2f59528140d6cb251a5",
+    "occupancymovementsincemay.csv": "00dfab9bff4c0b0408c64e053e5310b8daebdc60a2e605958d312fd68a4acb12"
+  },
+  "periods": [
+    {
+      "id": "noviembre_2025",
+      "expected_range": {
+        "from": "2025-11-01T00:00:00Z",
+        "to": "2025-11-30T23:59:59Z"
+      },
+      "rooms": ["foyer"],
+      "signal_files": [
+        "history-1mes.csv"
+      ],
+      "label_files": [
+        "hall-cat+person-occupancy-nov2025.csv"
+      ],
+      "entity_roles": {
+        "binary_sensor.hall_person_occupancy": "person_confirmation",
+        "binary_sensor.hall_cat_occupancy": "pet_confirmation"
+      },
+      "entity_rooms": {
+        "binary_sensor.hall_person_occupancy": "foyer",
+        "binary_sensor.hall_cat_occupancy": "foyer"
+      },
+      "room_aliases": {
+        "hall": "foyer",
+        "hall_sensor": "foyer",
+        "hall_person": "foyer",
+        "hall_cat": "foyer"
+      },
+      "exclusions": []
+    },
+    {
+      "id": "mayo_2026",
+      "expected_range": {
+        "from": "2026-05-01T00:00:00Z",
+        "to": "2026-06-01T23:59:59Z"
+      },
+      "rooms": ["foyer"],
+      "signal_files": [
+        "occupancymovementsincemay.csv"
+      ],
+      "label_files": [
+        "occupancymovementsincemay.csv"
+      ],
+      "entity_roles": {
+        "binary_sensor.hall_person_occupancy": "person_confirmation",
+        "binary_sensor.hall_cat_occupancy": "pet_confirmation"
+      },
+      "entity_rooms": {
+        "binary_sensor.hall_person_occupancy": "foyer",
+        "binary_sensor.hall_cat_occupancy": "foyer",
+        "binary_sensor.hall_sensor_motion": "foyer",
+        "binary_sensor.chair_occupied": "foyer"
+      },
+      "room_aliases": {
+        "hall": "foyer",
+        "hall_sensor": "foyer",
+        "hall_person": "foyer",
+        "hall_cat": "foyer"
+      },
+      "exclusions": [
+        {
+          "entity_id": "binary_sensor.chair_occupied",
+          "valid_from": "2026-05-13T04:00:00Z",
+          "reason": "Lecturas anteriores al 13 de mayo no son confiables"
+        }
+      ]
+    }
+  ]
+}

@@ -201,15 +201,15 @@ def _build_profile(req: ProfileCreateInput) -> dict[str, Any]:
 async def _apply_profile(profile: dict[str, Any]) -> None:
     async with hub_state.lock:
         hub_state.apply_profile(profile)
-        candidate = AIAdjacencyModel()
+        candidate = hub_state.ai_model
         model_status = _profile_model_status(profile)
         if model_status.get("compatible"):
+            candidate = AIAdjacencyModel()
             loaded = await asyncio.to_thread(
                 candidate.load_state,
                 _profile_model_dir(profile["id"]),
             )
             if loaded.get("loaded"):
-                hub_state.ai_model = candidate
                 hub_state.rooms.update(candidate.rooms)
                 hub_state.active_profile_model_compatible = True
                 count = len(candidate.rooms)
@@ -218,6 +218,18 @@ async def _apply_profile(profile: dict[str, Any]) -> None:
                     if count
                     else np.zeros((0,), dtype=np.float32)
                 )
+        if (
+            getattr(candidate, "pet_filter_model", None)
+            is None
+            and hasattr(
+                candidate,
+                "load_packaged_pet_filter",
+            )
+        ):
+            await asyncio.to_thread(
+                candidate.load_packaged_pet_filter,
+            )
+        hub_state.ai_model = candidate
     await hub_state.broadcast_snapshot()
 
 

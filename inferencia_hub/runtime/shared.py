@@ -35,6 +35,8 @@ from ..domain import (
     TrainModelFullRequest,
     TrainModelRequest,
     TrainSimulatorPresenceRequest,
+    TrainPresenceSupervisedRequest,
+    TrainingManifestInput,
     build_layout_for_request,
     build_scenario_templates,
     classify_sensor_type,
@@ -53,4 +55,5 @@ history_store = context.history
 profile_store = context.profiles
 ha_entity_catalog = context.catalog
 training_status = context.training_status
+training_manifests = context.manifests
 LOGGER = logging.getLogger("inferencia_hub")

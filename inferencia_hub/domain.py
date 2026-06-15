@@ -377,6 +377,20 @@ class TrainSimulatorPresenceRequest(BaseModel):
     weak_presence_hold_seconds: int = Field(default=180, ge=10, le=3600)
 
 
+class TrainingManifestInput(BaseModel):
+    manifest_id: str = Field(min_length=1, max_length=120)
+
+
+class TrainPresenceSupervisedRequest(BaseModel):
+    manifest_id: str = Field(default="person_pet_foyer", min_length=1, max_length=120)
+    epochs: int = Field(default=5, ge=1, le=30)
+    seed: int = Field(default=42, ge=0)
+    min_human_recall: float = Field(default=0.98, ge=0.5, le=1.0)
+    synthetic_scenarios: int = Field(default=120, ge=20, le=1000)
+    synthetic_steps: int = Field(default=60, ge=20, le=500)
+    max_samples: int = Field(default=15000, ge=500, le=80000)
+
+
 class LayoutReferenceInput(BaseModel):
     adjacency_text: str = ""
     adjacency: dict[str, list[str]] = Field(default_factory=dict)

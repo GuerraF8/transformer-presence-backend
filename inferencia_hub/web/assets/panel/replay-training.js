@@ -25,8 +25,12 @@ export function createReplayTrainingController({
     const info = model.presence_training_info || {};
     const presence = model.training_status?.presence || {};
     const historical = model.training_status?.historical || {};
+    const supervised = model.training_status?.supervised || {};
+    const supervisedFilter = model.pet_filter || {};
     const running =
-      presence.state === "running" || historical.state === "running";
+      presence.state === "running" ||
+      historical.state === "running" ||
+      supervised.state === "running";
     el.presenceTrainState.textContent =
       presence.state === "running"
         ? "Entrenando"
@@ -40,7 +44,31 @@ export function createReplayTrainingController({
     el.presenceTrainRooms.textContent = formatInteger(
       info.rooms_total || model.presence_rooms?.length || 0,
     );
-    const candidates = [presence, historical].filter(
+    el.supervisedTrainState.textContent =
+      supervised.state === "running"
+        ? "Entrenando"
+        : supervised.state === "error"
+          ? "Error"
+          : supervisedFilter.enabled
+            ? supervisedFilter.suppression_enabled
+              ? supervisedFilter.source === "bundled"
+                ? "Activo incluido"
+                : "Activo"
+              : "Reglas temporales"
+            : "No entrenado";
+    el.supervisedHumanRecall.textContent = Number.isFinite(
+      Number(supervisedFilter.test?.recall),
+    )
+      ? toPercent(supervisedFilter.test.recall)
+      : "-";
+    el.supervisedPetSuppression.textContent = Number.isFinite(
+      Number(supervisedFilter.test?.pet_suppression_rate),
+    )
+      ? toPercent(supervisedFilter.test.pet_suppression_rate)
+      : "-";
+    el.supervisedDataset.textContent =
+      supervisedFilter.manifest_id || "Sin dataset supervisado";
+    const candidates = [presence, historical, supervised].filter(
       (item) => Object.keys(item).length,
     );
     const active =
@@ -130,6 +158,30 @@ export function createReplayTrainingController({
     return state.replay;
   }
 
+  async function fetchTrainingManifests() {
+    const payload = await fetchJson("/api/training/manifests", {
+      cache: "no-store",
+    });
+    const selected = el.supervisedManifestSelect.value;
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    el.supervisedManifestSelect.replaceChildren();
+    for (const item of items) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent =
+        item.valid === false ? `${item.name} (inválido)` : item.name;
+      option.disabled = item.valid === false;
+      el.supervisedManifestSelect.append(option);
+    }
+    if (items.some((item) => item.id === selected && item.valid !== false)) {
+      el.supervisedManifestSelect.value = selected;
+    }
+    el.trainSupervisedBtn.disabled = !el.supervisedManifestSelect.value;
+    el.validateSupervisedManifestBtn.disabled =
+      !el.supervisedManifestSelect.value;
+    return items;
+  }
+
   async function setInputMode(mode) {
     try {
       const payload = await fetchJson("/api/input_mode", {
@@ -187,8 +239,15 @@ export function createReplayTrainingController({
       el.trainPresenceAutoBtn,
       el.trainPresenceManualBtn,
       el.trainHistoricalBtn,
+      el.trainSupervisedBtn,
+      el.validateSupervisedManifestBtn,
+      el.rollbackModelBtn,
     ]) {
       if (button) button.disabled = busy;
+    }
+    if (!busy && !el.supervisedManifestSelect.value) {
+      el.trainSupervisedBtn.disabled = true;
+      el.validateSupervisedManifestBtn.disabled = true;
     }
   }
 
@@ -213,10 +272,17 @@ export function createReplayTrainingController({
         ...(state.modelInfo.training_status || {}),
         [kind]: {
           state: "running",
-          label: kind === "presence" ? "Presencia simulador" : "Historico CSV",
+          label:
+            kind === "presence"
+              ? "Presencia simulador"
+              : kind === "supervised"
+                ? "Presencia supervisada"
+                : "Historico CSV",
           message:
             kind === "presence"
               ? "entrenando ocupacion desde simulador"
+              : kind === "supervised"
+                ? "entrenando con confirmaciones de persona y mascota"
               : "entrenando mapa desde CSV historico",
           started_at: new Date().toISOString(),
         },
@@ -233,7 +299,9 @@ export function createReplayTrainingController({
         el.trainStatus,
         kind === "presence"
           ? `presencia entrenada | muestras ${result?.training_info?.samples || 0}`
-          : `histórico entrenado | eventos ${result?.training_info?.events_total || 0}`,
+          : kind === "supervised"
+            ? `modelo supervisado activo | ejecución ${result?.run_id || "-"}`
+            : `histórico entrenado | eventos ${result?.training_info?.events_total || 0}`,
         false,
       );
       await fetchModelInfo();
@@ -296,6 +364,69 @@ export function createReplayTrainingController({
     );
   }
 
+  async function validateSupervisedManifest() {
+    try {
+      const result = await fetchJson("/api/training/manifests/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          manifest_id: el.supervisedManifestSelect.value,
+        }),
+      });
+      setMiniStatus(
+        el.supervisedManifestStatus,
+        result.valid
+          ? `${result.files.length} archivos válidos y listos para entrenar`
+          : result.errors.join(" | "),
+        !result.valid,
+      );
+    } catch (error) {
+      setMiniStatus(
+        el.supervisedManifestStatus,
+        String(error.message || error),
+        true,
+      );
+    }
+  }
+
+  function trainSupervised() {
+    return runTraining(
+      "supervised",
+      {
+        manifest_id: el.supervisedManifestSelect.value,
+        epochs: numberFromSelect(el.trainEpochsInput, 5),
+        seed: numberFromSelect(el.trainSeedInput, 42),
+        min_human_recall: 0.98,
+        synthetic_scenarios: numberFromSelect(el.trainScenariosInput, 120),
+        synthetic_steps: numberFromSelect(el.trainStepsInput, 60),
+        max_samples: numberFromSelect(el.trainMaxSamplesInput, 15000),
+      },
+      "/api/train_presence_supervised",
+    );
+  }
+
+  async function rollbackModel() {
+    try {
+      setTrainingBusy(true);
+      await fetchJson("/api/model/rollback", { method: "POST" });
+      setMiniStatus(
+        el.supervisedManifestStatus,
+        "Modelo anterior restaurado y activado",
+        false,
+      );
+      await fetchModelInfo();
+      await refreshSnapshot();
+    } catch (error) {
+      setMiniStatus(
+        el.supervisedManifestStatus,
+        String(error.message || error),
+        true,
+      );
+    } finally {
+      setTrainingBusy(false);
+    }
+  }
+
   function registerActions() {
     el.modeListenBtn.addEventListener("click", () => setInputMode("listen"));
     el.modeReplayBtn?.addEventListener("click", () => setInputMode("replay"));
@@ -311,11 +442,23 @@ export function createReplayTrainingController({
       trainPresence(true),
     );
     el.trainHistoricalBtn.addEventListener("click", trainHistorical);
+    el.validateSupervisedManifestBtn.addEventListener(
+      "click",
+      validateSupervisedManifest,
+    );
+    el.trainSupervisedBtn.addEventListener("click", trainSupervised);
+    el.rollbackModelBtn.addEventListener("click", rollbackModel);
+    el.supervisedManifestSelect.addEventListener("change", () => {
+      el.trainSupervisedBtn.disabled = !el.supervisedManifestSelect.value;
+      el.validateSupervisedManifestBtn.disabled =
+        !el.supervisedManifestSelect.value;
+    });
   }
 
   return {
     fetchModelInfo,
     fetchReplayStatus,
+    fetchTrainingManifests,
     registerActions,
     render,
   };

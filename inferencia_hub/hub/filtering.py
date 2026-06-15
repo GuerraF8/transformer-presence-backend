@@ -5,6 +5,7 @@ from .dependencies import *  # noqa: F401,F403
 
 class FilteringMixin:
     def _presence_filter_config_locked(self) -> dict[str, Any]:
+        learned = dict(self.ai_model.pet_filter_info or {})
         return {
             "enabled": self.presence_filter_enabled,
             "window_seconds": self.presence_filter_window_seconds,
@@ -12,6 +13,13 @@ class FilteringMixin:
             "min_distinct_rooms": self.presence_filter_min_distinct_rooms,
             "pending_motion_events": len(self.presence_filter_events),
             "suppressed_total": self.presence_filter_suppressed_total,
+            "strategy": (
+                "supervised_transformer"
+                if learned.get("enabled")
+                and learned.get("suppression_enabled")
+                else "temporal_rules"
+            ),
+            "supervised": learned,
         }
 
     def presence_filter_config(self) -> dict[str, Any]:
@@ -42,6 +50,28 @@ class FilteringMixin:
         }
         if not self.presence_filter_enabled or sensor_type != "motion":
             return True, debug
+
+        supervised = self.ai_model.predict_human_motion(
+            list(self.sequence_history),
+            room,
+            now,
+            self.reference_layout,
+        )
+        if supervised is not None:
+            debug.update(supervised)
+            debug["applied"] = True
+            if supervised.get("suppression_enabled"):
+                accepted = bool(supervised.get("accepted"))
+                debug["accepted"] = accepted
+                debug["reason"] = (
+                    None
+                    if accepted
+                    else "movimiento_clasificado_como_mascota"
+                )
+                if not accepted:
+                    self.presence_filter_suppressed_total += 1
+                debug["suppressed_total"] = self.presence_filter_suppressed_total
+                return accepted, debug
 
         room_n = normalize_room_name(room)
         cutoff = now - timedelta(seconds=self.presence_filter_window_seconds)

@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "artifact_id": "person_pet_foyer-c293bc752c48-seed42",
+  "manifest_id": "person_pet_foyer",
+  "dataset_fingerprint": "c293bc752c48109380feb055cd01e09f81b8a8599bd8ebc14085d951b7381bd7",
+  "threshold": 0.2,
+  "context_length": 28,
+  "checkpoint_sha256": "f081e9c90fe4346ab2f6be024c44df5ab6f1dd97fd5cf0b2252a83d25825616b",
+  "training": {
+    "epochs": 5,
+    "seed": 42,
+    "min_human_recall": 0.98,
+    "torch_version": "2.6.0+cpu"
+  },
+  "pet_filter_info": {
+    "enabled": true,
+    "suppression_enabled": true,
+    "threshold": 0.2,
+    "manifest_id": "person_pet_foyer",
+    "dataset_fingerprint": "c293bc752c48109380feb055cd01e09f81b8a8599bd8ebc14085d951b7381bd7",
+    "input_size": 12,
+    "context_length": 28,
+    "device": "cpu",
+    "min_human_recall": 0.98,
+    "activation_policy": "operational_preference",
+    "validation": {
+      "tp": 933,
+      "fp": 1173,
+      "fn": 19,
+      "tn": 383,
+      "precision": 0.443,
+      "recall": 0.98,
+      "f1": 0.6102,
+      "accuracy": 0.5247,
+      "pet_suppression_rate": 0.2461
+    },
+    "test": {
+      "tp": 755,
+      "fp": 1189,
+      "fn": 23,
+      "tn": 358,
+      "precision": 0.3884,
+      "recall": 0.9704,
+      "f1": 0.5547,
+      "accuracy": 0.4787,
+      "pet_suppression_rate": 0.219,
+      "human_false_suppression_rate": 0.0296,
+      "recall_below_target": true,
+      "by_period": {
+        "mayo_2026": {
+          "tp": 509,
+          "fp": 954,
+          "fn": 22,
+          "tn": 357,
+          "precision": 0.3479,
+          "recall": 0.9586,
+          "f1": 0.5105,
+          "accuracy": 0.4701,
+          "pet_suppression_rate": 0.2222,
+          "human_false_suppression_rate": 0.0414
+        },
+        "noviembre_2025": {
+          "tp": 246,
+          "fp": 235,
+          "fn": 1,
+          "tn": 1,
+          "precision": 0.5114,
+          "recall": 0.996,
+          "f1": 0.6758,
+          "accuracy": 0.5114,
+          "pet_suppression_rate": 0.0,
+          "human_false_suppression_rate": 0.004
+        }
+      }
+    },
+    "baseline_temporal": {
+      "tp": 232,
+      "fp": 237,
+      "fn": 546,
+      "tn": 1310,
+      "precision": 0.4947,
+      "recall": 0.2982,
+      "f1": 0.3721,
+      "accuracy": 0.6632,
+      "by_period": {
+        "mayo_2026": {
+          "tp": 204,
+          "fp": 217,
+          "fn": 327,
+          "tn": 1094,
+          "precision": 0.4846,
+          "recall": 0.3842,
+          "f1": 0.4286,
+          "accuracy": 0.7047
+        },
+        "noviembre_2025": {
+          "tp": 28,
+          "fp": 20,
+          "fn": 219,
+          "tn": 216,
+          "precision": 0.5833,
+          "recall": 0.1134,
+          "f1": 0.1898,
+          "accuracy": 0.5052
+        }
+      }
+    },
+    "trained_at": "2026-06-15T01:20:32.640378Z",
+    "source": "bundled",
+    "pretrained": true
+  },
+  "result": {
+    "enabled": true,
+    "suppression_enabled": true,
+    "threshold": 0.2,
+    "manifest_id": "person_pet_foyer",
+    "dataset_fingerprint": "c293bc752c48109380feb055cd01e09f81b8a8599bd8ebc14085d951b7381bd7",
+    "input_size": 12,
+    "context_length": 28,
+    "device": "cpu",
+    "min_human_recall": 0.98,
+    "activation_policy": "operational_preference",
+    "validation": {
+      "tp": 933,
+      "fp": 1173,
+      "fn": 19,
+      "tn": 383,
+      "precision": 0.443,
+      "recall": 0.98,
+      "f1": 0.6102,
+      "accuracy": 0.5247,
+      "pet_suppression_rate": 0.2461
+    },
+    "test": {
+      "tp": 755,
+      "fp": 1189,
+      "fn": 23,
+      "tn": 358,
+      "precision": 0.3884,
+      "recall": 0.9704,
+      "f1": 0.5547,
+      "accuracy": 0.4787,
+      "pet_suppression_rate": 0.219,
+      "human_false_suppression_rate": 0.0296,
+      "recall_below_target": true,
+      "by_period": {
+        "mayo_2026": {
+          "tp": 509,
+          "fp": 954,
+          "fn": 22,
+          "tn": 357,
+          "precision": 0.3479,
+          "recall": 0.9586,
+          "f1": 0.5105,
+          "accuracy": 0.4701,
+          "pet_suppression_rate": 0.2222,
+          "human_false_suppression_rate": 0.0414
+        },
+        "noviembre_2025": {
+          "tp": 246,
+          "fp": 235,
+          "fn": 1,
+          "tn": 1,
+          "precision": 0.5114,
+          "recall": 0.996,
+          "f1": 0.6758,
+          "accuracy": 0.5114,
+          "pet_suppression_rate": 0.0,
+          "human_false_suppression_rate": 0.004
+        }
+      }
+    },
+    "baseline_temporal": {
+      "tp": 232,
+      "fp": 237,
+      "fn": 546,
+      "tn": 1310,
+      "precision": 0.4947,
+      "recall": 0.2982,
+      "f1": 0.3721,
+      "accuracy": 0.6632,
+      "by_period": {
+        "mayo_2026": {
+          "tp": 204,
+          "fp": 217,
+          "fn": 327,
+          "tn": 1094,
+          "precision": 0.4846,
+          "recall": 0.3842,
+          "f1": 0.4286,
+          "accuracy": 0.7047
+        },
+        "noviembre_2025": {
+          "tp": 28,
+          "fp": 20,
+          "fn": 219,
+          "tn": 216,
+          "precision": 0.5833,
+          "recall": 0.1134,
+          "f1": 0.1898,
+          "accuracy": 0.5052
+        }
+      }
+    },
+    "trained_at": "2026-06-15T01:20:32.640378Z",
+    "samples": {
+      "train": 10002,
+      "validation": 2508,
+      "test": 2325
+    },
+    "loss": 0.337008
+  }
+}

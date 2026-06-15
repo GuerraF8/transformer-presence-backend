@@ -1680,6 +1680,10 @@ kbd {
     height: calc(100vh - 16px);
   }
 
+  .config-workspace > .surface-head {
+    position: static;
+  }
+
   .sensor-selection-actions {
     align-items: stretch;
     flex-direction: column;

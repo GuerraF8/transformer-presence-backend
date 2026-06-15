@@ -49,7 +49,7 @@ WEB_DIR = resolve_web_dir()
 def _create_base_app() -> FastAPI:
     application = FastAPI(
         title="Inferencia Presencia Hub",
-        version="0.5.0",
+        version="0.6.0",
         openapi_tags=OPENAPI_TAGS,
     )
     application.state.context = context

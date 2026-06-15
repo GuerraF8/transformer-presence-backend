@@ -10,6 +10,7 @@ from fastapi import WebSocket
 from .history_store import HistoryStore, history_store_from_env
 from .hub_state import InferenceHubState
 from .profile_store import PresenceProfileStore, profile_store_from_env
+from .supervised.manifest import TrainingManifestStore
 
 
 def utc_iso() -> str:
@@ -148,6 +149,13 @@ def default_training_status() -> dict[str, dict[str, Any]]:
             "finished_at": None,
             "message": "sin entrenamiento iniciado desde UI",
         },
+        "supervised": {
+            "state": "idle",
+            "label": "Presencia supervisada",
+            "started_at": None,
+            "finished_at": None,
+            "message": "sin entrenamiento supervisado iniciado",
+        },
     }
 
 
@@ -159,6 +167,9 @@ class ApplicationContext:
     catalog: HAEntityCatalog = field(default_factory=HAEntityCatalog)
     actions: HAActionQueue = field(default_factory=HAActionQueue)
     websocket: WebSocketBroker = field(default_factory=WebSocketBroker)
+    manifests: TrainingManifestStore = field(
+        default_factory=TrainingManifestStore
+    )
     training_status: dict[str, dict[str, Any]] = field(
         default_factory=default_training_status
     )

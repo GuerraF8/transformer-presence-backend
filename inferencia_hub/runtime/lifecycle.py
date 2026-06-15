@@ -1,5 +1,9 @@
 """Inicio, cierre y persistencia del servicio."""
 
+import os
+import shutil
+from uuid import uuid4
+
 from .shared import *  # noqa: F401,F403
 
 
@@ -177,6 +181,89 @@ def persist_model_state() -> dict[str, Any] | None:
     except Exception:
         LOGGER.exception("No se pudo persistir el estado del modelo")
         return None
+
+
+def persist_model_state_atomic() -> dict[str, Any] | None:
+    """Reemplaza el modelo activo y conserva la versión anterior."""
+
+    target = active_model_state_dir()
+    if target is None:
+        return None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    staging = target.parent / f".{target.name}.staging-{uuid4().hex}"
+    previous = target.parent / f"{target.name}.previous"
+    previous_staging = target.parent / f".{target.name}.previous-{uuid4().hex}"
+    replaced = target.parent / f".{target.name}.replaced-{uuid4().hex}"
+    try:
+        hub_state.ai_model.training_info["profile_fingerprint"] = (
+            hub_state.active_profile_fingerprint
+        )
+        saved = hub_state.ai_model.save_state(staging)
+        if target.exists():
+            shutil.copytree(target, previous_staging)
+            if previous.exists():
+                shutil.rmtree(previous)
+            os.replace(previous_staging, previous)
+            os.replace(target, replaced)
+        os.replace(staging, target)
+        if replaced.exists():
+            shutil.rmtree(replaced)
+        hub_state.active_profile_model_compatible = True
+        active_saved = {
+            key: (
+                str(target / Path(value).name)
+                if isinstance(value, str)
+                else value
+            )
+            for key, value in saved.items()
+        }
+        return {
+            **active_saved,
+            "active_dir": str(target),
+            "previous_dir": str(previous) if previous.exists() else None,
+        }
+    except Exception:
+        LOGGER.exception("No se pudo reemplazar atómicamente el modelo")
+        if not target.exists() and replaced.exists():
+            os.replace(replaced, target)
+        return None
+    finally:
+        for path in (staging, previous_staging, replaced):
+            if path.exists():
+                shutil.rmtree(path, ignore_errors=True)
+
+
+def rollback_model_state() -> dict[str, Any]:
+    target = active_model_state_dir()
+    if target is None:
+        raise ValueError("No hay un perfil activo")
+    previous = target.parent / f"{target.name}.previous"
+    if not previous.exists():
+        raise FileNotFoundError("No existe un modelo anterior para restaurar")
+    swap = target.parent / f".{target.name}.rollback-{uuid4().hex}"
+    try:
+        if target.exists():
+            os.replace(target, swap)
+        os.replace(previous, target)
+        if swap.exists():
+            os.replace(swap, previous)
+        loaded = hub_state.ai_model.load_state(target)
+        hub_state.active_profile_model_compatible = bool(loaded.get("loaded"))
+        return {
+            "status": "ok",
+            "loaded": loaded,
+            "active_dir": str(target),
+            "previous_dir": str(previous),
+        }
+    except Exception:
+        failed = target.parent / f".{target.name}.failed-{uuid4().hex}"
+        if target.exists():
+            os.replace(target, failed)
+        if swap.exists():
+            os.replace(swap, target)
+        if failed.exists():
+            os.replace(failed, previous)
+        raise
 
 
 def export_simulated_sensor_csv(

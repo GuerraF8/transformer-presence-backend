@@ -11,6 +11,7 @@ from inferencia_hub.ai.graph import GraphMixin
 from inferencia_hub.ai.occupancy import OccupancyMixin
 from inferencia_hub.ai.persistence import PersistenceMixin
 from inferencia_hub.ai.simulation import SimulationMixin
+from inferencia_hub.ai.supervised import SupervisedFilterMixin
 from inferencia_hub.ai.training import TrainingMixin
 from inferencia_hub.ai.transitions import TransitionsMixin
 from inferencia_hub.ai_model import AIAdjacencyModel as ExportedModel
@@ -27,6 +28,7 @@ from inferencia_hub.hub_state import InferenceHubState as ExportedHubState
 from inferencia_hub.runtime import HANDLERS
 from inferencia_hub.runtime.lifecycle import persist_history_event
 from inferencia_hub.runtime.shared import hub_state
+from inferencia_hub.ai import dependencies as ai_dependencies
 
 
 class ComponentStructureTest(unittest.TestCase):
@@ -39,8 +41,13 @@ class ComponentStructureTest(unittest.TestCase):
             OccupancyMixin,
             GraphMixin,
             TrainingMixin,
+            SupervisedFilterMixin,
         ):
             self.assertTrue(issubclass(AIAdjacencyModel, component))
+
+    def test_torch_exports_neural_network_namespace_when_available(self) -> None:
+        if ai_dependencies.TORCH_AVAILABLE:
+            self.assertIsNotNone(ai_dependencies.nn)
 
     def test_model_state_round_trip_restores_model_data(self) -> None:
         model = AIAdjacencyModel()
@@ -75,6 +82,7 @@ class ComponentStructureTest(unittest.TestCase):
         self.assertIn("ingest_event", HANDLERS)
         self.assertIn("replay_csv", HANDLERS)
         self.assertIn("train_model", HANDLERS)
+        self.assertIn("train_presence_supervised", HANDLERS)
         self.assertIs(hub_state.event_sink, persist_history_event)
 
     def test_exported_hub_state_includes_required_operations(self) -> None:

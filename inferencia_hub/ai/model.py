@@ -7,9 +7,10 @@ from .simulation import SimulationMixin
 from .occupancy import OccupancyMixin
 from .graph import GraphMixin
 from .training import TrainingMixin
+from .supervised import SupervisedFilterMixin
 
 
-class AIAdjacencyModel(PersistenceMixin, TransitionsMixin, SimulationMixin, OccupancyMixin, GraphMixin, TrainingMixin):
+class AIAdjacencyModel(PersistenceMixin, TransitionsMixin, SimulationMixin, OccupancyMixin, GraphMixin, TrainingMixin, SupervisedFilterMixin):
     def __init__(self) -> None:
         self.ready = False
         self.rooms: list[str] = []
@@ -28,6 +29,11 @@ class AIAdjacencyModel(PersistenceMixin, TransitionsMixin, SimulationMixin, Occu
         self.occupancy_transformer_info: dict[str, Any] = {}
         self.occupancy_transformer_count_classes = 0
         self.real_profile_info: dict[str, Any] = {}
+        self.pet_filter_model: Any | None = None
+        self.pet_filter_device: Any | None = None
+        self.pet_filter_info: dict[str, Any] = {}
+        self.pet_filter_threshold = 0.0
+        self.pet_filter_context_length = TRANSFORMER_CONTEXT_LENGTH
         self._lock = asyncio.Lock()
         self._train_lock = threading.Lock()
 

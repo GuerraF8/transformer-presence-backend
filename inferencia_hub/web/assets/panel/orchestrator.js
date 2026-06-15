@@ -118,6 +118,13 @@ async function init() {
       true,
     ),
   );
+  await load(replayTraining.fetchTrainingManifests, (error) =>
+    setMiniStatus(
+      el.supervisedManifestStatus,
+      `manifiestos: ${String(error.message || error)}`,
+      true,
+    ),
+  );
   await load(dashboard.fetchPresenceFilter, (error) =>
     setMiniStatus(
       el.petFilterStatus,

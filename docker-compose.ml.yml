@@ -1,0 +1,8 @@
+services:
+  inferencia_hub:
+    build:
+      context: .
+      dockerfile: inferencia_hub/Dockerfile
+      args:
+        INSTALL_ML: "1"
+    image: transformer-presence-backend:ml

@@ -48,6 +48,13 @@ async def ingest_event(payload: SensorEventInput) -> dict[str, Any]:
             "reason": "no_active_profile",
             "input_mode": hub_state.input_mode,
         }
+    if training_manifests.is_confirmation_entity(payload.entity_id):
+        return {
+            "status": "ignored",
+            "reason": "training_confirmation_entity",
+            "entity_id": payload.entity_id,
+            "input_mode": hub_state.input_mode,
+        }
     source = str(payload.source or "").lower()
     is_csv = source.startswith("csv_")
     is_simulator = "simulator" in source or source in {"manual_send", "sensor_simulator"}
@@ -110,6 +117,7 @@ def model_info() -> dict[str, Any]:
         "training_info": hub_state.ai_model.training_info,
         "presence_rooms": hub_state.ai_model.occupancy_transformer_rooms,
         "presence_training_info": hub_state.ai_model.occupancy_transformer_info,
+        "pet_filter": hub_state.ai_model.pet_filter_info,
         "training_status": training_status,
     }
 
