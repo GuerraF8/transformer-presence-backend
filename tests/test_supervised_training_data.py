@@ -8,6 +8,7 @@ from pathlib import Path
 import random
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from inferencia_hub.supervised.dataset import SupervisedDatasetBuilder
 from inferencia_hub.supervised.manifest import TrainingManifestStore
@@ -51,6 +52,25 @@ class SupervisedTrainingDataTest(unittest.TestCase):
             dataset_root=self.data_dir,
             defaults_dir=self.defaults_dir,
         )
+
+    def test_constructor_does_not_write_to_manifest_directory(self) -> None:
+        manifest_dir = Path(self.temporary.name) / "deferred" / "manifests"
+        report_dir = manifest_dir.parent / "training_reports"
+        with patch.dict(
+            "os.environ",
+            {"TRAINING_REPORT_DIR": str(report_dir)},
+            clear=False,
+        ):
+            store = TrainingManifestStore(
+                manifest_dir=manifest_dir,
+                dataset_root=self.data_dir,
+                defaults_dir=self.defaults_dir,
+            )
+            self.assertFalse(manifest_dir.exists())
+            self.assertFalse(report_dir.exists())
+            store.initialize()
+            self.assertTrue(manifest_dir.is_dir())
+            self.assertTrue(report_dir.is_dir())
 
     def _create_manifest(self) -> TrainingManifestStore:
         signal_rows: list[dict[str, str]] = []

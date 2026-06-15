@@ -373,6 +373,7 @@ async def startup_train_model() -> None:
     from .live_training import start_live_training_scheduler
 
     await history_store.start()
+    await asyncio.to_thread(training_manifests.initialize)
     await asyncio.to_thread(live_training_store.initialize)
     start_live_training_scheduler()
     load_training_status()

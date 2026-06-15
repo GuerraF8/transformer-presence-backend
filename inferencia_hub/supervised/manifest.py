@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+from threading import Lock
 from typing import Any
 
 
@@ -58,9 +59,21 @@ class TrainingManifestStore:
             )
         ).resolve()
         self._confirmation_entities: set[str] = set()
-        self._ensure_directories()
-        self._install_defaults()
-        self._refresh_confirmation_entities()
+        self._initialized = False
+        self._initialization_lock = Lock()
+
+    def initialize(self) -> None:
+        """Prepara los directorios y manifiestos incluidos cuando se necesitan."""
+
+        if self._initialized:
+            return
+        with self._initialization_lock:
+            if self._initialized:
+                return
+            self._ensure_directories()
+            self._install_defaults()
+            self._refresh_confirmation_entities()
+            self._initialized = True
 
     def _ensure_directories(self) -> None:
         self.manifest_dir.mkdir(parents=True, exist_ok=True)
@@ -106,6 +119,7 @@ class TrainingManifestStore:
         return path
 
     def load(self, manifest_id: str) -> dict[str, Any]:
+        self.initialize()
         path = self.manifest_path(manifest_id)
         if not path.exists():
             raise FileNotFoundError(f"No existe el manifiesto: {manifest_id}")
@@ -113,6 +127,7 @@ class TrainingManifestStore:
         return self._normalize(payload, manifest_id=path.stem)
 
     def list(self) -> list[dict[str, Any]]:
+        self.initialize()
         self._refresh_confirmation_entities()
         manifests: list[dict[str, Any]] = []
         for path in sorted(self.manifest_dir.glob("*.json")):
@@ -143,6 +158,7 @@ class TrainingManifestStore:
         return manifests
 
     def validate(self, manifest_id: str) -> dict[str, Any]:
+        self.initialize()
         manifest = self.load(manifest_id)
         self._refresh_confirmation_entities()
         files: list[dict[str, Any]] = []
@@ -189,6 +205,7 @@ class TrainingManifestStore:
         }
 
     def is_confirmation_entity(self, entity_id: str) -> bool:
+        self.initialize()
         return (
             str(entity_id or "").strip().lower()
             in self._confirmation_entities
@@ -221,6 +238,7 @@ class TrainingManifestStore:
         return path
 
     def save_report(self, run_id: str, payload: dict[str, Any]) -> Path:
+        self.initialize()
         path = self.report_path(run_id)
         temporary = path.with_suffix(".tmp")
         temporary.write_text(
@@ -231,6 +249,7 @@ class TrainingManifestStore:
         return path
 
     def load_report(self, run_id: str) -> dict[str, Any]:
+        self.initialize()
         path = self.report_path(run_id)
         if not path.exists():
             raise FileNotFoundError(f"No existe el reporte: {run_id}")
