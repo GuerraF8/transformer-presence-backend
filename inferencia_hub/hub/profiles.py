@@ -4,6 +4,16 @@ from .dependencies import *  # noqa: F401,F403
 
 
 class ProfilesMixin:
+    @staticmethod
+    def _layout_signature(
+        rooms: set[str],
+        layout: dict[str, list[str]],
+    ) -> tuple[tuple[str, ...], tuple[tuple[str, str], ...]]:
+        return (
+            tuple(sorted(room for room in rooms if room)),
+            tuple(sorted(adjacency_edge_set(layout))),
+        )
+
     def _profile_payload_locked(self) -> dict[str, Any]:
         return {
             "active_profile_id": self.active_profile_id,
@@ -51,14 +61,31 @@ class ProfilesMixin:
             for edge in profile.get("edges", [])
             if isinstance(edge, list) and len(edge) == 2
         ]
-        self._reset_transient_locked()
-        self.ai_model = AIAdjacencyModel()
+        next_reference_layout = to_adjacency(sorted(rooms), edges)
+        previous_signature = self._layout_signature(
+            set(self.real_sensor_rooms),
+            self.reference_layout,
+        )
+        next_signature = self._layout_signature(
+            rooms,
+            next_reference_layout,
+        )
+        layout_changed = (
+            not self.active_profile_id
+            or previous_signature != next_signature
+        )
+
+        if layout_changed:
+            self._reset_transient_locked()
+            self.ai_model = AIAdjacencyModel()
+
         self.real_sensor_rooms = rooms
         self.real_sensor_assignments = assignments
         self.real_sensor_require_explicit_selection = True
-        self.reference_layout = to_adjacency(sorted(rooms), edges)
+        self.reference_layout = next_reference_layout
         self.reference_layout_source = "profile"
-        self.reference_layout_version += 1
+        if layout_changed:
+            self.reference_layout_version += 1
         self.active_profile_id = str(profile.get("id") or "")
         self.active_profile_name = str(profile.get("name") or "")
         self.active_profile_revision = int(profile.get("revision") or 1)
@@ -76,10 +103,15 @@ class ProfilesMixin:
         self.ai_model.room_to_idx = {
             room: index for index, room in enumerate(self.ai_model.rooms)
         }
-        self.ai_model.transition_matrix = np.eye(
-            len(self.ai_model.rooms),
-            dtype=np.float32,
-        )
+        if (
+            layout_changed
+            or self.ai_model.transition_matrix.shape
+            != (len(self.ai_model.rooms), len(self.ai_model.rooms))
+        ):
+            self.ai_model.transition_matrix = np.eye(
+                len(self.ai_model.rooms),
+                dtype=np.float32,
+            )
         self.ai_model.adjacency_neighbors = {
             room: list(neighbors)
             for room, neighbors in self.reference_layout.items()

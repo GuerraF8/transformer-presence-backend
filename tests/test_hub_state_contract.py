@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 from datetime import datetime, timezone
 
+import numpy as np
+
 from inferencia_hub.domain import PresenceFilterConfigInput, SensorEventInput
 from inferencia_hub.hub_state import InferenceHubState
 from inferencia_hub.version import BACKEND_VERSION
@@ -60,6 +62,81 @@ class HubStateContractTest(unittest.IsolatedAsyncioTestCase):
         snapshot = hub.snapshot()
         self.assertFalse(snapshot["profile"]["available"])
         self.assertEqual(snapshot["layout_reference"]["rooms"], [])
+
+    async def test_profile_sensor_update_preserves_inferred_layout_state(self) -> None:
+        hub = InferenceHubState()
+        base_profile = {
+            "id": "profile-1",
+            "name": "Casa",
+            "revision": 1,
+            "fingerprint": "layout-1",
+            "rooms": [
+                {"slug": "cocina", "name": "Cocina"},
+                {"slug": "pasillo", "name": "Pasillo"},
+            ],
+            "assignments": [
+                {
+                    "entity_id": "binary_sensor.cocina_motion",
+                    "room_slug": "cocina",
+                    "enabled": True,
+                    "sensor_type": "motion",
+                    "status": "active",
+                }
+            ],
+            "edges": [["cocina", "pasillo"]],
+        }
+        hub.apply_profile(base_profile)
+        hub.events.append({"entity_id": "binary_sensor.cocina_motion"})
+        hub.edge_support[("cocina", "pasillo")] = 7
+        hub.latest_touched_edge = ("cocina", "pasillo")
+        learned_matrix = np.array(
+            [[0.2, 0.8], [0.65, 0.35]],
+            dtype=np.float32,
+        )
+        hub.ai_model.transition_matrix = learned_matrix.copy()
+        layout_version = hub.reference_layout_version
+
+        updated_profile = {
+            **base_profile,
+            "revision": 2,
+            "assignments": [
+                *base_profile["assignments"],
+                {
+                    "entity_id": "binary_sensor.pasillo_motion",
+                    "room_slug": "pasillo",
+                    "enabled": True,
+                    "sensor_type": "motion",
+                    "status": "active",
+                },
+            ],
+        }
+        hub.apply_profile(updated_profile)
+
+        self.assertEqual(hub.reference_layout_version, layout_version)
+        self.assertEqual(len(hub.events), 1)
+        self.assertEqual(hub.edge_support[("cocina", "pasillo")], 7)
+        self.assertEqual(hub.latest_touched_edge, ("cocina", "pasillo"))
+        np.testing.assert_allclose(
+            hub.ai_model.transition_matrix,
+            learned_matrix,
+        )
+        self.assertIn(
+            "binary_sensor.pasillo_motion",
+            hub.real_sensor_assignments,
+        )
+
+        layout_changed_profile = {
+            **updated_profile,
+            "revision": 3,
+            "edges": [],
+        }
+        hub.apply_profile(layout_changed_profile)
+        self.assertEqual(hub.events, [])
+        self.assertEqual(hub.edge_support[("cocina", "pasillo")], 0)
+        np.testing.assert_allclose(
+            hub.ai_model.transition_matrix,
+            np.eye(2, dtype=np.float32),
+        )
 
     async def test_event_processing_snapshot_callbacks_and_reset(self) -> None:
         hub = InferenceHubState()

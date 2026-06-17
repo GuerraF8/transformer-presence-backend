@@ -147,10 +147,19 @@ class PresenceProfileStoreTest(unittest.TestCase):
         base = profile_payload()
         renamed = profile_payload("Otro nombre")
         renamed["rooms"][0]["name"] = "Cocina principal"
-        changed = profile_payload()
-        changed["assignments"][0]["sensor_type"] = "occupancy"
+        sensor_changed = profile_payload()
+        sensor_changed["assignments"][0]["sensor_type"] = "occupancy"
+        layout_changed = profile_payload()
+        layout_changed["edges"] = []
         self.assertEqual(profile_fingerprint(base), profile_fingerprint(renamed))
-        self.assertNotEqual(profile_fingerprint(base), profile_fingerprint(changed))
+        self.assertEqual(
+            profile_fingerprint(base),
+            profile_fingerprint(sensor_changed),
+        )
+        self.assertNotEqual(
+            profile_fingerprint(base),
+            profile_fingerprint(layout_changed),
+        )
 
     def test_invalid_edges_and_assignments_are_discarded(self) -> None:
         payload = profile_payload()

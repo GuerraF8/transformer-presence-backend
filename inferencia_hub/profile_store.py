@@ -41,23 +41,9 @@ def utc_iso() -> str:
 def profile_fingerprint(profile: dict[str, Any]) -> str:
     structural = {
         "rooms": sorted(
-            (
-                str(room.get("slug") or ""),
-                str(room.get("area_id") or ""),
-            )
+            str(room.get("slug") or "")
             for room in profile.get("rooms", [])
             if isinstance(room, dict)
-        ),
-        "assignments": sorted(
-            (
-                str(item.get("entity_id") or ""),
-                str(item.get("room_slug") or ""),
-                str(item.get("sensor_type") or ""),
-                str(item.get("training_role") or "signal"),
-                bool(item.get("enabled", True)),
-            )
-            for item in profile.get("assignments", [])
-            if isinstance(item, dict)
         ),
         "edges": sorted(
             sorted((str(edge[0]), str(edge[1])))
