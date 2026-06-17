@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import os
+import tempfile
 import unittest
 
 from inferencia_hub.ai import AIAdjacencyModel
@@ -64,3 +66,22 @@ class RelativeOccupancyArtifactTest(unittest.TestCase):
             {"atelier", "garage_norte", "terraza"},
         )
         self.assertEqual(prediction["model_kind"], "relative_transformer")
+
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch no instalado")
+    def test_bundled_artifacts_load_without_training_csv_directory(self) -> None:
+        original_cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as empty_cwd:
+            os.chdir(empty_cwd)
+            try:
+                model = AIAdjacencyModel()
+                relative = model.load_packaged_relative_occupancy()
+                pet = model.load_packaged_pet_filter()
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertTrue(relative["loaded"])
+        self.assertEqual(model.relative_occupancy_info["source"], "bundled")
+        self.assertTrue(model.relative_occupancy_info["pretrained"])
+        self.assertTrue(pet["loaded"])
+        self.assertEqual(model.pet_filter_info["source"], "bundled")
+        self.assertTrue(model.pet_filter_info["pretrained"])

@@ -28,17 +28,19 @@ class ProfilesMixin:
                 continue
             entity_id = str(item.get("entity_id") or "").strip().lower()
             room = normalize_room_name(str(item.get("room_slug") or ""))
-            if not entity_id or not room:
+            training_role = str(
+                item.get("training_role") or "signal"
+            )
+            if not entity_id or (not room and training_role != "people_count_confirmation"):
                 continue
-            rooms.add(room)
+            if room:
+                rooms.add(room)
             assignments[entity_id] = {
                 "room": room,
                 "enabled": bool(item.get("enabled", True))
                 and str(item.get("status") or "active") == "active",
                 "sensor_type": str(item.get("sensor_type") or "other"),
-                "training_role": str(
-                    item.get("training_role") or "signal"
-                ),
+                "training_role": training_role,
                 "area_id": str(item.get("area_id") or ""),
                 "status": str(item.get("status") or "active"),
                 "warning": str(item.get("warning") or ""),

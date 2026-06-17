@@ -50,6 +50,9 @@ class InferenceHubState(ProfilesMixin, LayoutMixin, SensorsMixin, MetricsMixin, 
 
         self.current_people_estimate = 0
         self.max_people_estimate = 0
+        self.people_count_ground_truth: dict[str, Any] | None = None
+        self.room_count_ground_truth: dict[str, dict[str, Any]] = {}
+        self.ground_truth_samples: deque[dict[str, Any]] = deque(maxlen=5000)
 
         self.ingestion_latency_ms: deque[float] = deque(maxlen=5000)
         self.processing_latency_ms: deque[float] = deque(maxlen=5000)

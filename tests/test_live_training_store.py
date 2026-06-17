@@ -46,13 +46,25 @@ class LiveTrainingStoreTest(unittest.TestCase):
                 profile_revision=1,
                 profile_fingerprint="fingerprint",
             )
+            count_id = store.record_confirmation(
+                timestamp="2026-06-01T10:02:00Z",
+                entity_id="sensor.people_home",
+                state="2",
+                training_role="people_count_confirmation",
+                room="",
+                profile_id="profile-1",
+                profile_revision=1,
+                profile_fingerprint="fingerprint",
+                numeric_value=2.0,
+            )
             counts = store.confirmation_counts(
                 "profile-1",
                 "fingerprint",
             )
             self.assertEqual(counts["person"], 1)
             self.assertEqual(counts["pet"], 1)
-            self.assertEqual(counts["maximum_id"], pet_id)
+            self.assertEqual(counts["count"], 1)
+            self.assertEqual(counts["maximum_id"], count_id)
             store.record_signal(
                 timestamp="2026-06-01T09:59:55Z",
                 entity_id="binary_sensor.foyer_motion",
@@ -81,7 +93,7 @@ class LiveTrainingStoreTest(unittest.TestCase):
                 run_id,
                 state="activated",
                 message="ok",
-                confirmation_cutoff_id=pet_id,
+                confirmation_cutoff_id=count_id,
                 activated_components=["occupancy"],
                 metrics={"occupancy": {"candidate": {"f1": 0.9}}},
             )
@@ -92,3 +104,4 @@ class LiveTrainingStoreTest(unittest.TestCase):
                 0,
             )
             self.assertLess(person_id, pet_id)
+            self.assertLess(pet_id, count_id)

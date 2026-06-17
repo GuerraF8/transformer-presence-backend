@@ -4,7 +4,7 @@
   "dataset_fingerprint": "c293bc752c48109380feb055cd01e09f81b8a8599bd8ebc14085d951b7381bd7",
   "checkpoint_sha256": "7cae81ce6caff76ecafffb1c45718b4e92c4f1236f2d89c05705d13a6fe9e251",
   "threshold": 0.53,
-  "trained_at": "2026-06-15T02:29:50.138676Z",
+  "trained_at": "2026-06-17T18:23:31.053001Z",
   "model": {
     "kind": "relative_transformer",
     "input_size": 12,

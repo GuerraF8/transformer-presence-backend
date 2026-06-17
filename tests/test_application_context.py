@@ -45,7 +45,7 @@ class ApplicationContextTest(unittest.TestCase):
             "/api/replay_csv",
             "/presencia",
         }
-        self.assertEqual(app.version, "0.7.0")
+        self.assertEqual(app.version, "0.7.1")
         self.assertIs(create_app(), app)
         self.assertTrue(expected.issubset(paths))
         self.assertIs(app.state.context.hub, app.state.context.hub)

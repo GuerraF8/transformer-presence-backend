@@ -433,6 +433,7 @@ export function createHomeAssistantController({
           room: String(item.room || "").trim(),
           enabled: item.enabled !== false,
           sensor_type: String(item.sensor_type || "auto"),
+          training_role: String(item.training_role || "signal"),
         }))
         .filter((item) => item.entity_id && item.room),
       require_explicit_selection:

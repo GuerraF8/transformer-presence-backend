@@ -5,6 +5,20 @@ from .lifecycle import activate_listen_mode
 from .live_training import live_training_status
 
 
+def _parse_people_count_state(value: Any) -> int | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        number = float(raw)
+    except ValueError:
+        return None
+    if not (0 <= number < 1000000):
+        return None
+    count = int(number)
+    return count if number == float(count) else None
+
+
 def health() -> dict[str, Any]:
     running = bool(hub_state.replay_task and not hub_state.replay_task.done())
     return {
@@ -93,6 +107,7 @@ async def ingest_event(payload: SensorEventInput) -> dict[str, Any]:
     if training_role in {
         "person_confirmation",
         "pet_confirmation",
+        "people_count_confirmation",
     }:
         if not is_real_ha or hub_state.input_mode != "listen":
             return {
@@ -109,6 +124,19 @@ async def ingest_event(payload: SensorEventInput) -> dict[str, Any]:
         timestamp = to_utc_iso(
             payload.timestamp or datetime.now(timezone.utc)
         )
+        numeric_value = None
+        count_value = None
+        if training_role == "people_count_confirmation":
+            count_value = _parse_people_count_state(payload.state)
+            if count_value is None:
+                return {
+                    "status": "ignored",
+                    "reason": "count_confirmation_state_not_numeric",
+                    "entity_id": str(payload.entity_id or "").strip().lower(),
+                    "state": str(payload.state or ""),
+                    "input_mode": hub_state.input_mode,
+                }
+            numeric_value = float(count_value)
         confirmation_id = await asyncio.to_thread(
             live_training_store.record_confirmation,
             timestamp=timestamp,
@@ -121,13 +149,33 @@ async def ingest_event(payload: SensorEventInput) -> dict[str, Any]:
             profile_fingerprint=str(
                 hub_state.active_profile_fingerprint or ""
             ),
+            numeric_value=numeric_value,
         )
+        event_timestamp = payload.timestamp or datetime.now(timezone.utc)
+        async with hub_state.lock:
+            if training_role == "people_count_confirmation":
+                hub_state._apply_count_ground_truth_locked(
+                    timestamp=event_timestamp,
+                    entity_id=str(payload.entity_id).strip().lower(),
+                    room=str(assignment.get("room") or ""),
+                    count=int(count_value or 0),
+                )
+            else:
+                hub_state._record_confirmation_ground_truth_locked(
+                    timestamp=event_timestamp,
+                    entity_id=str(payload.entity_id).strip().lower(),
+                    state=str(payload.state or "").strip().lower(),
+                    training_role=training_role,
+                    room=str(assignment.get("room") or ""),
+                )
+        await hub_state.broadcast_snapshot()
         return {
             "status": "recorded",
             "reason": "training_confirmation",
             "confirmation_id": confirmation_id,
             "training_role": training_role,
             "room": assignment.get("room"),
+            "numeric_value": numeric_value,
             "input_mode": hub_state.input_mode,
         }
     if (

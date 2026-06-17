@@ -4,6 +4,203 @@ from .dependencies import *  # noqa: F401,F403
 
 
 class MetricsMixin:
+    def _ground_truth_is_fresh_locked(self, item: dict[str, Any], now: datetime | None = None) -> bool:
+        timestamp = str(item.get("timestamp") or "")
+        if not timestamp:
+            return False
+        try:
+            observed_at = parse_iso_datetime(timestamp)
+        except Exception:
+            return False
+        current = now or datetime.now(timezone.utc)
+        return current - observed_at <= timedelta(seconds=self.presence_hold_seconds)
+
+    def _record_ground_truth_sample_locked(self, sample: dict[str, Any]) -> None:
+        self.ground_truth_samples.append(sample)
+
+    def _apply_count_ground_truth_locked(
+        self,
+        *,
+        timestamp: datetime,
+        entity_id: str,
+        room: str,
+        count: int,
+        predicted_people: int | None = None,
+    ) -> None:
+        room = normalize_room_name(room)
+        predicted = int(self.current_people_estimate if predicted_people is None else predicted_people)
+        sample = {
+            "timestamp": to_utc_iso(timestamp),
+            "type": "people_count",
+            "entity_id": entity_id,
+            "scope": "room" if room else "global",
+            "room": room,
+            "ground_truth_count": int(count),
+            "predicted_people": predicted,
+        }
+        self._record_ground_truth_sample_locked(sample)
+        if room:
+            self.room_count_ground_truth[room] = {
+                "timestamp": sample["timestamp"],
+                "entity_id": entity_id,
+                "room": room,
+                "count": int(count),
+            }
+            if count > 0:
+                self.occupancy_confirmed_by_room[room] = timestamp
+                self.last_active_by_room[room] = timestamp
+                self.current_room = room
+                if room not in self.current_active_rooms:
+                    self.current_active_rooms = list(dict.fromkeys([*self.current_active_rooms, room]))
+            else:
+                self.occupancy_confirmed_by_room.pop(room, None)
+                self.last_active_by_room.pop(room, None)
+                self.current_active_rooms = [
+                    active_room for active_room in self.current_active_rooms if active_room != room
+                ]
+                if self.current_room == room:
+                    self.current_room = self.current_active_rooms[0] if self.current_active_rooms else None
+            room_floor = sum(
+                int(item.get("count") or 0)
+                for item in self.room_count_ground_truth.values()
+                if self._ground_truth_is_fresh_locked(item, timestamp)
+            )
+            self.current_people_estimate = max(self.current_people_estimate, room_floor)
+        else:
+            self.people_count_ground_truth = {
+                "timestamp": sample["timestamp"],
+                "entity_id": entity_id,
+                "count": int(count),
+            }
+            self.current_people_estimate = int(count)
+        self.max_people_estimate = max(self.max_people_estimate, self.current_people_estimate)
+
+    def _record_confirmation_ground_truth_locked(
+        self,
+        *,
+        timestamp: datetime,
+        entity_id: str,
+        state: str,
+        training_role: str,
+        room: str,
+    ) -> None:
+        room = normalize_room_name(room)
+        if not room or str(state).lower() != "on":
+            return
+        expected_presence = training_role == "person_confirmation"
+        sample = {
+            "timestamp": to_utc_iso(timestamp),
+            "type": training_role,
+            "entity_id": entity_id,
+            "room": room,
+            "expected_presence": expected_presence,
+            "predicted_room": self.current_room,
+            "predicted_active_rooms": list(self.current_active_rooms),
+            "predicted_people": self.current_people_estimate,
+        }
+        self._record_ground_truth_sample_locked(sample)
+        if training_role == "person_confirmation":
+            self.occupancy_confirmed_by_room[room] = timestamp
+            self.last_active_by_room[room] = timestamp
+            self.current_room = room
+            if room not in self.current_active_rooms:
+                self.current_active_rooms = list(dict.fromkeys([room, *self.current_active_rooms]))
+            self.current_people_estimate = max(1, self.current_people_estimate)
+            self.max_people_estimate = max(self.max_people_estimate, self.current_people_estimate)
+
+    def _ground_truth_metrics_locked(self) -> dict[str, Any]:
+        samples = list(self.ground_truth_samples)
+        count_samples = [item for item in samples if item.get("type") == "people_count"]
+        global_count_samples = [
+            item for item in count_samples if item.get("scope") == "global"
+        ]
+        room_count_samples = [
+            item for item in count_samples if item.get("scope") == "room"
+        ]
+        exact_count_matches = [
+            item
+            for item in global_count_samples
+            if int(item.get("predicted_people") or 0) == int(item.get("ground_truth_count") or 0)
+        ]
+        count_errors = [
+            abs(int(item.get("predicted_people") or 0) - int(item.get("ground_truth_count") or 0))
+            for item in global_count_samples
+        ]
+
+        presence_samples = [
+            item
+            for item in samples
+            if item.get("type") in {"person_confirmation", "pet_confirmation", "occupancy"}
+        ]
+        person_samples = [
+            item
+            for item in presence_samples
+            if item.get("type") in {"person_confirmation", "occupancy"}
+        ]
+        pet_samples = [
+            item
+            for item in presence_samples
+            if item.get("type") == "pet_confirmation"
+        ]
+        person_hits = [
+            item
+            for item in person_samples
+            if normalize_room_name(str(item.get("room") or ""))
+            in {
+                normalize_room_name(str(room))
+                for room in item.get("predicted_active_rooms", [])
+            }
+            or normalize_room_name(str(item.get("predicted_room") or ""))
+            == normalize_room_name(str(item.get("room") or ""))
+        ]
+        pet_false_positives = [
+            item
+            for item in pet_samples
+            if normalize_room_name(str(item.get("room") or ""))
+            in {
+                normalize_room_name(str(room))
+                for room in item.get("predicted_active_rooms", [])
+            }
+            or normalize_room_name(str(item.get("predicted_room") or ""))
+            == normalize_room_name(str(item.get("room") or ""))
+        ]
+
+        return {
+            "samples_total": len(samples),
+            "count": {
+                "samples": len(count_samples),
+                "global_samples": len(global_count_samples),
+                "room_samples": len(room_count_samples),
+                "count_accuracy": (
+                    round(len(exact_count_matches) / len(global_count_samples), 4)
+                    if global_count_samples
+                    else None
+                ),
+                "count_mae": (
+                    round(float(np.mean(count_errors)), 4)
+                    if count_errors
+                    else None
+                ),
+                "last_global": self.people_count_ground_truth,
+                "last_by_room": dict(self.room_count_ground_truth),
+            },
+            "presence": {
+                "samples": len(presence_samples),
+                "person_samples": len(person_samples),
+                "person_room_match_rate": (
+                    round(len(person_hits) / len(person_samples), 4)
+                    if person_samples
+                    else None
+                ),
+                "pet_samples": len(pet_samples),
+                "pet_false_positive_rate": (
+                    round(len(pet_false_positives) / len(pet_samples), 4)
+                    if pet_samples
+                    else None
+                ),
+            },
+        }
+
     def _estimate_people_locked(self, active_rooms: list[str]) -> int:
         active = [normalize_room_name(room) for room in active_rooms if normalize_room_name(room)]
         active_unique = sorted(set(active))
@@ -219,6 +416,8 @@ class MetricsMixin:
                 "max_observed": self.max_people_estimate,
                 "occupancy_ground_truth_rooms": sorted(self.occupancy_confirmed_by_room.keys()),
                 "live_sensor_rooms": sorted(self.active_sensor_types_by_room.keys()),
+                "ground_truth_count": self.people_count_ground_truth,
+                "ground_truth_room_counts": dict(self.room_count_ground_truth),
             },
             "real_sensors": {
                 "rooms_total": len(self.real_sensor_rooms),
@@ -235,6 +434,7 @@ class MetricsMixin:
                 "sensor_or_data_error": self.non_adjacent_sensor_error,
                 "recent": self.non_adjacent_records[-25:],
             },
+            "ground_truth": self._ground_truth_metrics_locked(),
             "latency": {
                 "ingestion": self._summarize_latency(self.ingestion_latency_ms),
                 "processing": self._summarize_latency(self.processing_latency_ms),

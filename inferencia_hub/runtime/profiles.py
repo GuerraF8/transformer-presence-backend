@@ -11,6 +11,7 @@ from ..profile_store import (
     ProfileNotFoundError,
     ProfileRevisionError,
     normalize_profile,
+    profile_validation_errors,
 )
 
 
@@ -310,20 +311,24 @@ async def update_profile(
     profile_id: str,
     req: ProfileUpdateInput,
 ) -> dict[str, Any]:
+    profile_payload = {
+        "name": req.name,
+        "rooms": [room.model_dump() for room in req.rooms],
+        "areas": [area.model_dump() for area in req.areas],
+        "assignments": [
+            assignment.model_dump()
+            for assignment in req.assignments
+        ],
+        "edges": req.edges,
+    }
+    errors = profile_validation_errors(profile_payload)
+    if errors:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
     try:
         updated = await asyncio.to_thread(
             profile_store.update,
             profile_id,
-            {
-                "name": req.name,
-                "rooms": [room.model_dump() for room in req.rooms],
-                "areas": [area.model_dump() for area in req.areas],
-                "assignments": [
-                    assignment.model_dump()
-                    for assignment in req.assignments
-                ],
-                "edges": req.edges,
-            },
+            profile_payload,
             expected_revision=req.revision,
         )
     except ProfileNotFoundError as exc:
@@ -566,7 +571,12 @@ def _legacy_profile_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 "training_role": (
                     str(item.get("training_role") or "signal")
                     if str(item.get("training_role") or "signal")
-                    in {"signal", "person_confirmation", "pet_confirmation"}
+                    in {
+                        "signal",
+                        "person_confirmation",
+                        "pet_confirmation",
+                        "people_count_confirmation",
+                    }
                     else "signal"
                 ),
                 "status": "active",

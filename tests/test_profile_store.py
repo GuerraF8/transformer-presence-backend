@@ -9,6 +9,7 @@ from inferencia_hub.profile_store import (
     PresenceProfileStore,
     ProfileRevisionError,
     normalize_profile,
+    profile_validation_errors,
     profile_fingerprint,
 )
 
@@ -66,6 +67,43 @@ class PresenceProfileStoreTest(unittest.TestCase):
             profile["assignments"][0]["training_role"],
             "signal",
         )
+
+    def test_people_count_confirmation_can_be_global_without_room(self) -> None:
+        profile = normalize_profile(
+            {
+                "name": "Casa",
+                "rooms": [{"slug": "hall", "name": "Hall"}],
+                "assignments": [
+                    {
+                        "entity_id": "sensor.number_of_people_home",
+                        "room_slug": "",
+                        "sensor_type": "other",
+                        "training_role": "people_count_confirmation",
+                    }
+                ],
+            }
+        )
+        self.assertEqual(len(profile["assignments"]), 1)
+        self.assertEqual(
+            profile["assignments"][0]["training_role"],
+            "people_count_confirmation",
+        )
+        self.assertEqual(profile["assignments"][0]["room_slug"], "")
+
+    def test_profile_validation_rejects_unassigned_non_count_sensor(self) -> None:
+        errors = profile_validation_errors(
+            {
+                "rooms": [{"slug": "hall", "name": "Hall"}],
+                "assignments": [
+                    {
+                        "entity_id": "binary_sensor.hall_motion",
+                        "room_slug": "",
+                        "training_role": "signal",
+                    }
+                ],
+            }
+        )
+        self.assertTrue(errors)
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()

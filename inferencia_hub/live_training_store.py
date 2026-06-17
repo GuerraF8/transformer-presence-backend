@@ -118,6 +118,14 @@ class LiveTrainingStore:
                     ON live_training_runs(profile_id, started_at DESC);
                 """
             )
+            columns = {
+                str(row["name"])
+                for row in connection.execute("PRAGMA table_info(training_confirmations)")
+            }
+            if "numeric_value" not in columns:
+                connection.execute(
+                    "ALTER TABLE training_confirmations ADD COLUMN numeric_value REAL"
+                )
             connection.execute(
                 """
                 INSERT OR IGNORE INTO live_training_config (
@@ -188,6 +196,7 @@ class LiveTrainingStore:
         profile_id: str,
         profile_revision: int,
         profile_fingerprint: str,
+        numeric_value: float | None = None,
     ) -> int:
         with self._connection() as connection:
             cursor = connection.execute(
@@ -195,8 +204,8 @@ class LiveTrainingStore:
                 INSERT INTO training_confirmations (
                     event_timestamp, stored_at, entity_id, state,
                     training_role, room, profile_id, profile_revision,
-                    profile_fingerprint
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    profile_fingerprint, numeric_value
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     timestamp,
@@ -208,6 +217,7 @@ class LiveTrainingStore:
                     profile_id,
                     int(profile_revision),
                     profile_fingerprint,
+                    numeric_value,
                 ),
             )
             connection.commit()
@@ -287,7 +297,7 @@ class LiveTrainingStore:
                 FROM training_confirmations
                 WHERE profile_id = ?
                   AND profile_fingerprint = ?
-                  AND state = 'on'
+                  AND (state = 'on' OR training_role = 'people_count_confirmation')
                   AND id > ?
                 GROUP BY training_role
                 """,
@@ -297,6 +307,7 @@ class LiveTrainingStore:
             "total": 0,
             "person": 0,
             "pet": 0,
+            "count": 0,
             "maximum_id": cutoff,
         }
         for row in rows:
@@ -311,6 +322,8 @@ class LiveTrainingStore:
                 counts["person"] += total
             elif role == "pet_confirmation":
                 counts["pet"] += total
+            elif role == "people_count_confirmation":
+                counts["count"] += total
         return counts
 
     def confirmations(

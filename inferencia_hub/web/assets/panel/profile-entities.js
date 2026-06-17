@@ -68,6 +68,7 @@ export function renderProfileEntities({
     `${(profile.assignments || []).filter((item) => item.enabled).length} entidades confirmadas / ` +
     `${(profile.assignments || []).filter((item) => item.enabled && item.training_role === "person_confirmation").length} persona / ` +
     `${(profile.assignments || []).filter((item) => item.enabled && item.training_role === "pet_confirmation").length} mascota / ` +
+    `${(profile.assignments || []).filter((item) => item.enabled && item.training_role === "people_count_confirmation").length} conteo / ` +
     `${(profile.rooms || []).length} habitaciones`;
   el.realSensorApplyBtn.disabled = !state.profiles.dirty;
   el.realSensorResetBtn.disabled = !state.profiles.dirty;

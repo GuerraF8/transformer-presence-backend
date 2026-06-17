@@ -51,14 +51,15 @@ class SensorsMixin:
             for assignment in config.assignments:
                 entity_id = str(assignment.entity_id or "").strip().lower()
                 room = normalize_room_name(assignment.room)
-                if not entity_id or not room:
+                training_role = str(assignment.training_role or "signal")
+                if not entity_id or (not room and training_role != "people_count_confirmation"):
                     continue
                 sensor_type = str(assignment.sensor_type or "auto").strip().lower()
                 assignments[entity_id] = {
                     "room": room,
                     "enabled": bool(assignment.enabled),
                     "sensor_type": sensor_type if sensor_type in {"auto", "motion", "door", "occupancy", "other"} else "auto",
-                    "training_role": "signal",
+                    "training_role": training_role,
                 }
 
             self.real_sensor_rooms = rooms
@@ -82,14 +83,16 @@ class SensorsMixin:
         for assignment in config.assignments:
             entity_id = str(assignment.entity_id or "").strip().lower()
             room = normalize_room_name(assignment.room)
-            if not entity_id or not room:
+            training_role = str(assignment.training_role or "signal")
+            if not entity_id or (not room and training_role != "people_count_confirmation"):
                 continue
-            rooms.add(room)
+            if room:
+                rooms.add(room)
             assignments[entity_id] = {
                 "room": room,
                 "enabled": bool(assignment.enabled),
                 "sensor_type": str(assignment.sensor_type or "auto"),
-                "training_role": "signal",
+                "training_role": training_role,
             }
         if rooms:
             self.real_sensor_rooms = rooms

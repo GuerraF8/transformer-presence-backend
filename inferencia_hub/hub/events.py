@@ -108,9 +108,23 @@ class EventsMixin:
                 inference_debug.update(ai_debug)
                 resolved_presence_room = inferred_presence_room
                 observed_room_forced = False
+                pre_ground_truth_room = inferred_presence_room
+                pre_ground_truth_active_rooms = list(ai_active_rooms)
 
                 if sensor_type == "occupancy":
                     # El sensor de ocupación actúa como confirmación directa de presencia.
+                    self._record_ground_truth_sample_locked(
+                        {
+                            "timestamp": to_utc_iso(now),
+                            "type": "occupancy",
+                            "entity_id": entity_id,
+                            "room": room,
+                            "expected_presence": True,
+                            "predicted_room": pre_ground_truth_room,
+                            "predicted_active_rooms": pre_ground_truth_active_rooms,
+                            "predicted_people": self.current_people_estimate,
+                        }
+                    )
                     self.occupancy_confirmed_by_room[room] = now
                     resolved_presence_room = room
                     confidence = max(confidence, 0.96)
@@ -218,6 +232,18 @@ class EventsMixin:
             occupancy_transformer_count = int(inference_debug.get("occupancy_transformer_people_count") or 0)
             if occupancy_transformer_count > 0:
                 estimated_people = max(estimated_people, occupancy_transformer_count)
+            fresh_room_count = sum(
+                int(item.get("count") or 0)
+                for item in self.room_count_ground_truth.values()
+                if self._ground_truth_is_fresh_locked(item, now)
+            )
+            if fresh_room_count > 0:
+                estimated_people = max(estimated_people, fresh_room_count)
+            if (
+                self.people_count_ground_truth
+                and self._ground_truth_is_fresh_locked(self.people_count_ground_truth, now)
+            ):
+                estimated_people = int(self.people_count_ground_truth.get("count") or 0)
             self.current_people_estimate = estimated_people
             self.max_people_estimate = max(self.max_people_estimate, estimated_people)
 

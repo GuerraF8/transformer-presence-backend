@@ -7,6 +7,7 @@ from .profiles import (
     _catalog_entities,
     reconcile_profiles_with_catalog,
 )
+from ..profile_store import profile_validation_errors
 
 
 def get_ha_entities() -> dict[str, Any]:
@@ -99,7 +100,8 @@ async def set_real_sensor_config(config: RealSensorConfigInput) -> dict[str, Any
     for assignment in config.assignments:
         entity_id = str(assignment.entity_id or "").strip().lower()
         room_slug = normalize_room_name(assignment.room)
-        if not entity_id or not room_slug:
+        training_role = str(assignment.training_role or "signal")
+        if not entity_id:
             continue
         entity = catalog_by_entity.get(entity_id, {})
         sensor_type = str(assignment.sensor_type or "auto")
@@ -113,6 +115,7 @@ async def set_real_sensor_config(config: RealSensorConfigInput) -> dict[str, Any
                 "room_slug": room_slug,
                 "enabled": bool(assignment.enabled),
                 "sensor_type": sensor_type,
+                "training_role": training_role,
                 "area_id": str(entity.get("area_id") or ""),
                 "area_name": str(entity.get("area_name") or ""),
                 "status": "active",
@@ -121,6 +124,15 @@ async def set_real_sensor_config(config: RealSensorConfigInput) -> dict[str, Any
                 "platform": str(entity.get("platform") or ""),
             }
         )
+    errors = profile_validation_errors(
+        {
+            **profile,
+            "rooms": list(room_by_slug.values()),
+            "assignments": assignments,
+        }
+    )
+    if errors:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
     updated = await asyncio.to_thread(
         profile_store.update,
         profile["id"],

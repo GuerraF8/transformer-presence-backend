@@ -3,6 +3,7 @@ export const TRAINING_ROLES = [
   ["signal", "Señal de inferencia"],
   ["person_confirmation", "Confirmación de persona"],
   ["pet_confirmation", "Confirmación de mascota"],
+  ["people_count_confirmation", "Confirmación de conteo"],
 ];
 
 export function cloneProfile(value) {

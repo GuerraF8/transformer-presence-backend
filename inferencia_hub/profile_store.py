@@ -14,6 +14,16 @@ from uuid import uuid4
 
 
 SCHEMA_VERSION = 1
+TRAINING_ROLE_SIGNAL = "signal"
+TRAINING_ROLE_PERSON_CONFIRMATION = "person_confirmation"
+TRAINING_ROLE_PET_CONFIRMATION = "pet_confirmation"
+TRAINING_ROLE_PEOPLE_COUNT_CONFIRMATION = "people_count_confirmation"
+TRAINING_ROLES = {
+    TRAINING_ROLE_SIGNAL,
+    TRAINING_ROLE_PERSON_CONFIRMATION,
+    TRAINING_ROLE_PET_CONFIRMATION,
+    TRAINING_ROLE_PEOPLE_COUNT_CONFIRMATION,
+}
 
 
 class ProfileNotFoundError(KeyError):
@@ -64,6 +74,39 @@ def profile_fingerprint(profile: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def normalized_training_role(value: Any) -> str:
+    role = str(value or TRAINING_ROLE_SIGNAL)
+    return role if role in TRAINING_ROLES else TRAINING_ROLE_SIGNAL
+
+
+def profile_validation_errors(profile: dict[str, Any]) -> list[str]:
+    rooms = {
+        str(room.get("slug") or "").strip().lower()
+        for room in profile.get("rooms", [])
+        if isinstance(room, dict)
+    }
+    errors: list[str] = []
+    for item in profile.get("assignments", []):
+        if not isinstance(item, dict):
+            continue
+        entity_id = str(item.get("entity_id") or "").strip().lower()
+        role_raw = str(item.get("training_role") or TRAINING_ROLE_SIGNAL)
+        role = normalized_training_role(role_raw)
+        room_slug = str(item.get("room_slug") or "").strip().lower()
+        if role_raw not in TRAINING_ROLES:
+            errors.append(f"{entity_id or 'Entidad'} tiene un uso no valido: {role_raw}")
+            continue
+        if role == TRAINING_ROLE_PEOPLE_COUNT_CONFIRMATION:
+            if room_slug and room_slug not in rooms:
+                errors.append(f"{entity_id} no puede asignarse: habitacion desconocida {room_slug}")
+            continue
+        if not room_slug:
+            errors.append(f"{entity_id} requiere una habitacion asignada")
+        elif room_slug not in rooms:
+            errors.append(f"{entity_id} no puede asignarse: habitacion desconocida {room_slug}")
+    return errors
+
+
 def normalize_profile(profile: dict[str, Any]) -> dict[str, Any]:
     normalized = deepcopy(profile)
     normalized["id"] = str(normalized.get("id") or uuid4())
@@ -94,28 +137,36 @@ def normalize_profile(profile: dict[str, Any]) -> dict[str, Any]:
         and str(area.get("area_id") or "")
         and str(area.get("room_slug") or "").strip().lower() in room_slugs
     ]
-    normalized["assignments"] = [
-        {
-            "entity_id": str(item.get("entity_id") or "").strip().lower(),
-            "room_slug": str(item.get("room_slug") or "").strip().lower(),
-            "enabled": bool(item.get("enabled", True)),
-            "sensor_type": str(item.get("sensor_type") or "other"),
-            "training_role": str(item.get("training_role") or "signal")
-            if str(item.get("training_role") or "signal")
-            in {"signal", "person_confirmation", "pet_confirmation"}
-            else "signal",
-            "area_id": str(item.get("area_id") or ""),
-            "area_name": str(item.get("area_name") or ""),
-            "status": str(item.get("status") or "active"),
-            "warning": str(item.get("warning") or ""),
-            "unique_id": str(item.get("unique_id") or ""),
-            "platform": str(item.get("platform") or ""),
-        }
-        for item in normalized.get("assignments", [])
-        if isinstance(item, dict)
-        and str(item.get("entity_id") or "").strip()
-        and str(item.get("room_slug") or "").strip().lower() in room_slugs
-    ]
+    assignments = []
+    for item in normalized.get("assignments", []):
+        if not isinstance(item, dict):
+            continue
+        entity_id = str(item.get("entity_id") or "").strip().lower()
+        room_slug = str(item.get("room_slug") or "").strip().lower()
+        training_role = normalized_training_role(item.get("training_role"))
+        if not entity_id:
+            continue
+        if training_role == TRAINING_ROLE_PEOPLE_COUNT_CONFIRMATION:
+            if room_slug and room_slug not in room_slugs:
+                continue
+        elif room_slug not in room_slugs:
+            continue
+        assignments.append(
+            {
+                "entity_id": entity_id,
+                "room_slug": room_slug,
+                "enabled": bool(item.get("enabled", True)),
+                "sensor_type": str(item.get("sensor_type") or "other"),
+                "training_role": training_role,
+                "area_id": str(item.get("area_id") or ""),
+                "area_name": str(item.get("area_name") or ""),
+                "status": str(item.get("status") or "active"),
+                "warning": str(item.get("warning") or ""),
+                "unique_id": str(item.get("unique_id") or ""),
+                "platform": str(item.get("platform") or ""),
+            }
+        )
+    normalized["assignments"] = assignments
     edges: set[tuple[str, str]] = set()
     for edge in normalized.get("edges", []):
         if not isinstance(edge, list) or len(edge) != 2:

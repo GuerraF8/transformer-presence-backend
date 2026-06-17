@@ -89,6 +89,10 @@ class SnapshotMixin:
                 ),
                 live_sensor_rooms=sorted(self.active_sensor_types_by_room.keys()),
             ),
+            "ground_truth": {
+                "people_count": self.people_count_ground_truth,
+                "room_counts": dict(self.room_count_ground_truth),
+            },
             "presence_filter": self._presence_filter_config_locked(),
             "real_sensor_config": self._real_sensor_config_locked(),
             "evaluation": self._evaluation_metrics_locked(),
@@ -137,6 +141,9 @@ class SnapshotMixin:
         self.non_adjacent_sensor_error = 0
         self.current_people_estimate = 0
         self.max_people_estimate = 0
+        self.people_count_ground_truth = None
+        self.room_count_ground_truth.clear()
+        self.ground_truth_samples.clear()
         self.presence_filter_events.clear()
         self.presence_filter_suppressed_total = 0
         self.ingestion_latency_ms.clear()

@@ -144,6 +144,8 @@ def _build_live_arrays() -> tuple[np.ndarray, np.ndarray]:
         item
         for item in confirmations
         if str(item.get("state") or "").lower() == "on"
+        and item.get("training_role")
+        in {"person_confirmation", "pet_confirmation"}
     ]
     if not active_confirmations:
         return (

@@ -45,6 +45,7 @@ import {
   profileSelectionChanged,
   profileSlug,
   profileUpdatePayload,
+  TRAINING_ROLES,
   validProfileRoomSelection,
 } from "../panel/profile-draft.js";
 import {
@@ -165,15 +166,29 @@ test("map helpers normalize adjacency without duplicate edges", () => {
 test("real sensor helpers normalize and compare assignments", () => {
   const config = cloneRealSensorConfig({
     rooms: [" kitchen ", "kitchen"],
-    assignments: [{ entity_id: "binary_sensor.kitchen", room: "kitchen" }],
+    assignments: [
+      {
+        entity_id: "binary_sensor.kitchen",
+        room: "kitchen",
+        training_role: "people_count_confirmation",
+      },
+    ],
   });
   assert.deepEqual(config.rooms, ["kitchen"]);
   assert.equal(config.assignments[0].sensor_type, "auto");
+  assert.equal(config.assignments[0].training_role, "people_count_confirmation");
   assert.equal(
     realSensorAssignmentChanged(
       config.assignments[0],
       { ...config.assignments[0], room: "living" },
     ),
+    true,
+  );
+});
+
+test("profile roles include people count confirmation", () => {
+  assert.equal(
+    TRAINING_ROLES.some(([value]) => value === "people_count_confirmation"),
     true,
   );
 });
@@ -253,7 +268,7 @@ test("realtime reducers update snapshots and events without DOM", () => {
     rooms: ["kitchen"],
     profile: { room_labels: { kitchen: "Cocina principal" } },
     events: [],
-    meta: { backend_version: "0.7.0" },
+    meta: { backend_version: "0.7.1" },
     presence: {
       current_room: "kitchen",
       active_rooms: ["kitchen"],
@@ -265,7 +280,7 @@ test("realtime reducers update snapshots and events without DOM", () => {
   });
   assert.equal(state.currentRoom, "kitchen");
   assert.equal(state.peopleEstimate, 2);
-  assert.equal(state.backendVersion, "0.7.0");
+  assert.equal(state.backendVersion, "0.7.1");
   assert.equal(state.roomLabels.kitchen, "Cocina principal");
   assert.equal(state.inferredEdges.get("kitchen|living"), 2);
 

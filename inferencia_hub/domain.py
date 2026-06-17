@@ -231,11 +231,32 @@ class HAActionRequestInput(BaseModel):
     initial_state: str = Field(default="off", pattern="^(on|off)$")
 
 
+TRAINING_ROLE_SIGNAL = "signal"
+TRAINING_ROLE_PERSON_CONFIRMATION = "person_confirmation"
+TRAINING_ROLE_PET_CONFIRMATION = "pet_confirmation"
+TRAINING_ROLE_PEOPLE_COUNT_CONFIRMATION = "people_count_confirmation"
+TRAINING_CONFIRMATION_ROLES = {
+    TRAINING_ROLE_PERSON_CONFIRMATION,
+    TRAINING_ROLE_PET_CONFIRMATION,
+    TRAINING_ROLE_PEOPLE_COUNT_CONFIRMATION,
+}
+TRAINING_ROLES = {
+    TRAINING_ROLE_SIGNAL,
+    *TRAINING_CONFIRMATION_ROLES,
+}
+
+
 class RealSensorAssignmentInput(BaseModel):
     entity_id: str
     room: str
     enabled: bool = True
     sensor_type: str = Field(default="auto", pattern="^(auto|motion|door|occupancy|other)$")
+    training_role: Literal[
+        "signal",
+        "person_confirmation",
+        "pet_confirmation",
+        "people_count_confirmation",
+    ] = "signal"
 
 
 class RealSensorConfigInput(BaseModel):
@@ -268,6 +289,7 @@ class ProfileAssignmentInput(BaseModel):
         "signal",
         "person_confirmation",
         "pet_confirmation",
+        "people_count_confirmation",
     ] = "signal"
     area_id: str = ""
     area_name: str = ""
