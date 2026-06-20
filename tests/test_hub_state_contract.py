@@ -125,9 +125,31 @@ class HubStateContractTest(unittest.IsolatedAsyncioTestCase):
             hub.real_sensor_assignments,
         )
 
-        layout_changed_profile = {
+        label_changed_profile = {
             **updated_profile,
             "revision": 3,
+            "rooms": [
+                {"slug": "cocina", "name": "Cocina principal"},
+                {"slug": "pasillo", "name": "Pasillo norte"},
+            ],
+        }
+        hub.apply_profile(label_changed_profile)
+        self.assertEqual(hub.reference_layout_version, layout_version + 1)
+        self.assertEqual(
+            hub.active_profile_room_labels["cocina"],
+            "Cocina principal",
+        )
+        self.assertEqual(len(hub.events), 1)
+        self.assertEqual(hub.edge_support[("cocina", "pasillo")], 7)
+        self.assertEqual(hub.latest_touched_edge, ("cocina", "pasillo"))
+        np.testing.assert_allclose(
+            hub.ai_model.transition_matrix,
+            learned_matrix,
+        )
+
+        layout_changed_profile = {
+            **label_changed_profile,
+            "revision": 4,
             "edges": [],
         }
         hub.apply_profile(layout_changed_profile)
