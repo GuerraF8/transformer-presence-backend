@@ -1,0 +1,6 @@
+-r inferencia_hub/requirements-base.txt
+coverage==7.10.7
+pytest==8.4.2
+pytest-asyncio==1.3.0
+pytest-cov==7.0.0
+diff-cover==9.7.1

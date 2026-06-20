@@ -10,3 +10,7 @@ __pycache__/
 # Cliente: deja CSV historicos locales aqui si quieres usar replay/entrenamiento.
 data/*.csv
 !data/.gitkeep
+.coverage
+coverage.json
+coverage.xml
+htmlcov/

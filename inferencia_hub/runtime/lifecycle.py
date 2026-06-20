@@ -105,30 +105,6 @@ def store_training_artifact(payload: dict[str, Any]) -> str | None:
         return None
 
 
-def persist_real_sensor_config() -> None:
-    path = real_sensor_config_path()
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(hub_state.real_sensor_config(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-    except Exception:
-        LOGGER.exception("No se pudo persistir real_sensor_config")
-
-
-def load_real_sensor_config() -> None:
-    path = real_sensor_config_path()
-    if not path.exists():
-        return
-    try:
-        restored = json.loads(path.read_text(encoding="utf-8"))
-        if isinstance(restored, dict):
-            hub_state.load_real_sensor_config(restored)
-    except Exception:
-        LOGGER.exception("No se pudo cargar real_sensor_config persistido")
-
-
 async def activate_listen_mode() -> None:
     hub_state.input_mode = "listen"
     hub_state.replay_stop_requested = True

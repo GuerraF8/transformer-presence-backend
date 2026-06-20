@@ -3,9 +3,14 @@ from __future__ import annotations
 import unittest
 
 from inferencia_hub.api import history, home_assistant, layout, presence, replay, training
+from inferencia_hub.api.common import endpoint
 
 
 class RouterModuleTest(unittest.TestCase):
+    def test_missing_handler_has_actionable_error(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "missing"):
+            endpoint({}, "missing")
+
     def test_domain_modules_declare_owned_paths(self) -> None:
         modules = (presence, history, home_assistant, layout, training, replay)
         declared = set()
