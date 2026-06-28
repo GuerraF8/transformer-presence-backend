@@ -2,6 +2,12 @@
 
 ## Resumen Ejecutivo
 
+Para evaluar historiales exportados fuera del runtime, usa
+[`../RESULTADOS_PRESENCIA.md`](../RESULTADOS_PRESENCIA.md). Esa guia documenta
+`generar_resultados_presencia.py`, el contrato CSV generico, las metricas
+ponderadas por duracion, las referencias de ocupacion/camara/silla/movimiento y
+la medicion opcional con CodeCarbon.
+
 El sistema calcula métricas en tiempo real en tres categorías principales:
 1. **Mapa**: Calidad de la topología inferida vs. mapa real de referencia
 2. **Personas**: Estimación del número de ocupantes presentes

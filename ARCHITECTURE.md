@@ -14,6 +14,21 @@ encuentran en `inferencia_hub/ai/`:
 - `occupancy.py`: entrenamiento y predicción de ocupación.
 - `graph.py`: inferencia y validación del grafo de adyacencia.
 - `training.py`: coordinación del entrenamiento desde CSV.
+- `supervised.py`: inferencia del clasificador de origen del movimiento.
+
+`inferencia_hub/supervised/` contiene el repositorio de manifiestos y la
+normalización y etiquetado temporal de CSV. `trainer.py` coordina el proceso,
+`filter_training.py` entrena el clasificador de origen, `occupancy_training.py`
+ajusta la ocupación por habitación, `evaluation.py` calcula las métricas y
+`artifact.py` carga el checkpoint distribuido. El clasificador se define en
+`inferencia_hub/models/pet_filter.py`. Al activar un perfil sin modelo propio se
+carga el artefacto incluido, que no depende de nombres absolutos de entidades o
+habitaciones.
+
+`inferencia_hub/models/relative_occupancy.py` define un Transformer que puntua
+cada habitacion candidata mediante caracteristicas relativas.
+`inferencia_hub/relative_occupancy.py` valida el hash, carga el checkpoint
+incluido y ejecuta inferencia con cualquier perfil.
 
 Estos componentes dependen de contratos y reglas del dominio, pero no conocen
 FastAPI ni el estado de la aplicación.
@@ -32,6 +47,10 @@ los routers y los recursos estáticos. Los controladores están organizados en
 - `profiles.py`: CRUD, activación, migración y modelos aislados por perfil.
 - `layout.py`: escenarios, mapa de referencia y métricas.
 - `training.py`: entrenamiento y artefactos.
+- `supervised_training.py`: manifiestos, entrenamiento supervisado, reportes y
+  rollback.
+- `live_training.py`: acumulacion, validacion y activacion de adaptaciones con
+  confirmaciones en vivo.
 - `replay.py`: carga, ejecución y control de reproducciones.
 
 `runtime.HANDLERS` relaciona los controladores con los routers definidos en
@@ -59,6 +78,7 @@ flowchart LR
   API --> CTX[ApplicationContext]
   CTX --> HUB[InferenceHubState]
   CTX --> HIST[HistoryStore]
+  CTX --> LIVE[LiveTrainingStore]
   CTX --> PROFILES[PresenceProfileStore]
   CTX --> CAT[HAEntityCatalog]
   CTX --> ACT[HAActionQueue]
@@ -96,7 +116,8 @@ controladores. Las funciones de interfaz se distribuyen entre `dashboard.js`,
 
 1. HACS normaliza el cambio de estado y lo envía a `/api/events`.
 2. El controlador valida el perfil activo, la fuente, el modo y el catálogo.
-3. `InferenceHubState.process_event` actualiza presencia, mapa y métricas.
+3. Una confirmacion se almacena como etiqueta; una señal continua hacia
+   `InferenceHubState.process_event`, que actualiza presencia, mapa y metricas.
 4. El evento se envía a la cola SQLite y a las conexiones WebSocket.
 5. HACS aplica la respuesta a las entidades nativas de Home Assistant.
 

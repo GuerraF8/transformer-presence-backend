@@ -2,11 +2,17 @@
 
 Backend FastAPI para Transformer Presence. Recibe eventos desde Home Assistant, mantiene el estado de presencia, entrena modelos desde historicos CSV y sirve el panel web que la integracion HACS abre como iframe.
 
-La version `0.5.0` incorpora perfiles editables con habitaciones, areas de Home
-Assistant, entidades confirmadas y layouts arbitrarios. Consulta
+La version `0.7.1` incorpora un Transformer de ocupacion preentrenado que
+funciona con layouts arbitrarios y aprendizaje en vivo mediante confirmaciones
+de persona y mascota. Los perfiles editables, areas de Home Assistant,
+entidades confirmadas y layouts arbitrarios se mantienen. Consulta
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
 `GET /api/sim_data` publica en `presence` los campos estables usados por las entidades de Home Assistant: `inferred_presence`, `people_estimate`, `confidence` y `updated_at`, ademas de `current_room` y `active_rooms`.
+
+El recorrido completo de un evento de sensor esta documentado en
+[inferencia_hub/EVENT_FLOW.md](inferencia_hub/EVENT_FLOW.md). Esa guia enlaza
+las capas de API, runtime, hub, modelos, historial, metricas y panel.
 
 ## Despliegue rapido
 
@@ -60,6 +66,11 @@ El compose monta:
 - `inferencia_hub_data:/app/data` para estado runtime, modelos, metricas, configuracion e historial SQLite.
 - `./data:/data:ro` para CSV historicos que quieras usar en replay o entrenamiento.
 
+La imagen ya incluye checkpoints preentrenados generados desde los historiales
+locales del proyecto. Esos CSV son insumos privados de build y no forman parte
+del paquete instalado; solo necesitas montar `./data` si quieres reproducir
+replays o regenerar modelos.
+
 Para entrenar o reproducir historicos, deja tus CSV en `data/` y usa rutas del contenedor como:
 
 ```text
@@ -82,6 +93,32 @@ Las variables disponibles estan documentadas en `.env.example`. Las mas usadas s
 - `PRESENCE_PROFILES_PATH`: repositorio JSON de perfiles; por defecto
   `/app/data/presence_profiles.json`.
 
+## Modelo preentrenado y aprendizaje en vivo
+
+La imagen estandar incluye un Transformer relativo de ocupacion, independiente
+de nombres y cantidad de habitaciones, y un clasificador de movimiento humano
+o mascota. Al activar un perfil sin modelo propio, el backend carga ambos
+artefactos y guarda una copia compatible en
+`/app/data/model_state/profiles/{profile_id}`.
+
+Cada entidad seleccionada puede tener el rol `signal`,
+`person_confirmation`, `pet_confirmation` o `people_count_confirmation`. Las
+confirmaciones de persona, mascota, sensores `occupancy` y conteo se tratan como
+ground truth para correccion y evaluacion; no se procesan como senales inferidas
+normales. El scheduler evalua diariamente una adaptacion cuando existen al
+menos 500 etiquetas nuevas, con 100 de persona y 100 de mascota, y han
+transcurrido siete dias desde la ultima activacion.
+
+Endpoints:
+
+- `GET /api/live_training/status`
+- `GET/PUT /api/live_training/config`
+- `POST /api/live_training/run`
+
+Solo se activa un candidato que mejora las metricas del modelo actual. La
+ocupacion y el filtro de mascotas se validan de forma independiente, con
+reemplazo atomico y rollback.
+
 ## Historial de presencia
 
 El backend 0.4.0 persiste eventos brutos e inferencias de `listen`, `replay` y
@@ -101,6 +138,44 @@ borrado total exige enviar `{"confirmation":"BORRAR"}`. El historial de Recorder
 en Home Assistant sigue funcionando de forma independiente y complementaria.
 Las alertas no adyacentes se consultan desde el mismo historial SQLite, con los
 mismos filtros y una paginacion independiente en el panel.
+
+## Analisis reproducible de resultados historicos
+
+El repositorio incluye `generar_resultados_presencia.py` para calcular metricas
+temporales desde CSV exportados por Home Assistant u otra fuente equivalente.
+El script no requiere los historiales privados del proyecto: cada usuario debe
+entregar sus propios CSV con columnas de entidad, estado y timestamp, o un CSV
+ancho con una columna temporal y una columna por entidad.
+
+Ejemplo minimo:
+
+```bash
+python generar_resultados_presencia.py \
+  --input data/mi_historial.csv \
+  --count-inferred sensor.inferencia_de_presencia_2 \
+  --count-reference sensor.num_in_house \
+  --room binary_sensor.inferencia_de_presencia_occupancy_6=Kitchen \
+  --confirmation-reference input_boolean.kitchen_occupied="Kitchen occ." \
+  --output-dir outputs/presencia
+```
+
+El resultado principal es `metricas_presencia.json`, junto con
+`rendimiento_metricas_presencia.json` y figuras PNG cuando Pillow esta
+disponible. Para medir tiempo de ejecucion y emisiones estimadas con
+CodeCarbon:
+
+```bash
+pip install codecarbon
+python generar_resultados_presencia.py \
+  --input data/mi_historial.csv \
+  --track-emissions \
+  --offline-emissions-country CHL
+```
+
+Consulta [RESULTADOS_PRESENCIA.md](RESULTADOS_PRESENCIA.md) para el contrato de
+entrada, ejemplos de mapeo de habitaciones, diferencias entre ocupacion,
+camara, silla y movimiento, y recomendaciones para no publicar historiales con
+datos sensibles.
 
 ## Home Assistant
 
@@ -128,9 +203,11 @@ Los endpoints principales son:
 - `POST /api/profiles/{profile_id}/infer-layout`
 
 Las actualizaciones usan revision optimista y devuelven `409` ante un borrador
-obsoleto. Sin perfil activo, `/api/events` no procesa inferencia y las entidades
-de Home Assistant permanecen no disponibles. Los modelos se guardan por perfil
-en `/app/data/model_state/profiles/{profile_id}`.
+obsoleto. Agregar, quitar o cambiar sensores dentro de las mismas habitaciones
+no invalida el mapa aprendido; el estado se reinicia solo si cambian las
+habitaciones o las conexiones del layout. Sin perfil activo, `/api/events` no
+procesa inferencia y las entidades de Home Assistant permanecen no disponibles.
+Los modelos se guardan por perfil en `/app/data/model_state/profiles/{profile_id}`.
 
 ## Seguridad de entidades reales
 
@@ -148,6 +225,40 @@ El despliegue de clientes usa la imagen publicada. Para construir localmente des
 ```bash
 docker build -t transformer-presence-backend:local -f inferencia_hub/Dockerfile .
 ```
+
+La imagen liviana no instala PyTorch ni Transformers. Para entrenar y cargar
+los modelos Transformer:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ml.yml up -d --build
+```
+
+Los CSV permanecen localmente en `data/`, montados como solo lectura en `/data`
+cuando se desea reproducir el entrenamiento. El manifiesto `person_pet_foyer`
+valida sus hashes SHA-256, ordena los eventos, normaliza UTC y genera divisiones
+cronologicas independientes para noviembre de 2025 y mayo de 2026. El usuario
+final recibe solo los checkpoints y metadatos en `inferencia_hub/defaults/models/`.
+
+Endpoints del entrenamiento supervisado:
+
+- `GET /api/training/manifests`
+- `POST /api/training/manifests/validate`
+- `POST /api/train_presence_supervised`
+- `GET /api/training/reports/{run_id}`
+- `POST /api/model/rollback`
+
+Las entidades de confirmacion de Frigate se registran como etiquetas y se
+excluyen de las entradas de inferencia. La imagen estandar incluye modelos
+supervisados listos para usar, por lo que el usuario no necesita ejecutar un
+entrenamiento inicial. El filtro selecciona su umbral con objetivo de recall
+humano y el modelo relativo selecciona el umbral de ocupacion sobre una reserva
+cronologica.
+La imagen liviana se puede construir explicitamente con `INSTALL_ML=0`; en ese
+caso se mantienen las reglas temporales.
+La ejecucion reproducible del entrenamiento supervisado con los historiales
+internos del proyecto esta documentada en
+[SUPERVISED_TRAINING_REPORT.md](SUPERVISED_TRAINING_REPORT.md). Los historiales
+privados no forman parte del repositorio.
 
 Luego cambia en `.env`:
 
