@@ -28,12 +28,18 @@ Servicio externo para inferencia de presencia + visualizacion en vivo.
 - Alertas no adyacentes paginadas: `GET /api/history/alerts`
 - Serie de presencia y personas: `GET /api/history/presence`
 - Borrado total confirmado: `POST /api/history/purge`
-- WebSocket para panel live: `ws://<host>:8080/presencia`
+- WebSocket para panel live: `ws://<host>:8081/presencia`
 - Web UI servida desde `/` (usa `inferencia_hub/web/index.html`)
+
+Para navegar el flujo completo de un evento de sensor, consulta
+[EVENT_FLOW.md](EVENT_FLOW.md). Esa guia sigue la ruta
+`api/presence.py` -> `runtime/presence.py` -> `hub/events.py` y enlaza los
+modulos de filtro, inferencia, metricas, snapshots e historial.
 
 ## Inferencia inteligente (IA)
 
-`inferencia_hub` aprende la topologia del hogar directamente desde `history-1mes*.csv`:
+`inferencia_hub` aprende la topologia del hogar desde historiales CSV montados
+por el usuario:
 
 - Construye transiciones dirigidas por secuencia temporal de sensores (sin hardcodear adyacencias).
 - Entrena un `TimeSeriesTransformer` (Hugging Face) para probabilidad de siguiente habitacion.
@@ -42,13 +48,14 @@ Servicio externo para inferencia de presencia + visualizacion en vivo.
 - Detecta transiciones no adyacentes y clasifica causa probable (multiples personas, mascota/ruido o error).
 - Estima presencia por habitacion con un filtro probabilistico (creencia + evidencia de sensores).
 - Estima numero de personas presentes a partir de habitaciones activas y conectividad.
+- Corrige inferencias con ground truth fresco de persona, mascota, `occupancy` y conteo.
 
 Opcionalmente puede ejecutar una validacion semantica del mapa con Ollama (`qwen2.5:0.5b-instruct` por defecto).
 
 ## Perfiles persistentes
 
-La version 0.5.0 guarda perfiles en
-`/app/data/presence_profiles.json` mediante escritura atomica. Un perfil define
+Los perfiles se guardan en `/app/data/presence_profiles.json` mediante
+escritura atomica. Un perfil define
 habitaciones, areas de Home Assistant, entidades seleccionadas, categoria de
 sensor y conexiones. Solo existe un perfil activo; sin el, los eventos de
 escucha se ignoran y el snapshot declara la inferencia no disponible.
@@ -73,9 +80,25 @@ adaptadores para clientes anteriores.
 
 Campos `sensor_type`, `room` y `timestamp` son opcionales; el servicio los infiere cuando faltan.
 
+### Procesamiento despues de la ingesta
+
+El handler `runtime/presence.py::ingest_event` primero valida perfil activo,
+modo de entrada, fuente y catalogo de Home Assistant. Luego separa los eventos
+por rol:
+
+- `signal`: entra a `InferenceHubState.process_event`.
+- `person_confirmation`: se registra como ground truth de persona.
+- `pet_confirmation`: se registra como ground truth de mascota.
+- `people_count_confirmation`: exige estado entero no negativo y corrige el
+  conteo global o por habitacion.
+
+Las confirmaciones no se procesan como movimiento normal. Las senales aceptadas
+actualizan filtro de presencia, transiciones, `edge_support`, estado de
+presencia, conteo, metricas, historial SQLite y WebSocket.
+
 ## Historial persistente
 
-La version 0.4.0 guarda en `/app/data/presence_history.sqlite3` el evento original,
+El historial guarda en `/app/data/presence_history.sqlite3` el evento original,
 la inferencia resultante y el modo de entrada. SQLite usa WAL, migraciones con
 `PRAGMA user_version`, indices de consulta y limpieza por retencion.
 
@@ -100,18 +123,17 @@ requiere reiniciar. `POST /api/reset` conserva el historial.
 
 ### Confirmaciones de persona y mascota
 
-La version 0.6.0 incluye un manifiesto local para combinar
-`history-1mes.csv`, `hall-cat+person-occupancy-nov2025.csv` y
-`occupancymovementsincemay.csv`. Las detecciones de Frigate generan etiquetas,
-pero sus entidades no forman parte de las features ni se aceptan durante la
-inferencia.
+El entrenamiento supervisado usa manifiestos JSON para declarar los CSV,
+periodos, habitaciones, roles, exclusiones y hashes esperados. Las detecciones
+de Frigate pueden generar etiquetas, pero sus entidades no forman parte de las
+features ni se aceptan durante la inferencia.
 
 ```bash
-curl -X POST http://localhost:8080/api/training/manifests/validate \
+curl -X POST http://localhost:8081/api/training/manifests/validate \
   -H "Content-Type: application/json" \
   -d '{"manifest_id":"person_pet_foyer"}'
 
-curl -X POST http://localhost:8080/api/train_presence_supervised \
+curl -X POST http://localhost:8081/api/train_presence_supervised \
   -H "Content-Type: application/json" \
   -d '{
     "manifest_id": "person_pet_foyer",
@@ -126,13 +148,25 @@ curl -X POST http://localhost:8080/api/train_presence_supervised \
 
 Cada ejecucion guarda un reporte por periodo y global con precision, recall,
 F1, supresion de eventos solo-mascota, falsos descartes humanos y metricas de
-ocupacion. El artefacto se activa al finalizar y conserva la version anterior.
+ocupacion. El artefacto se activa al finalizar y deja disponible el artefacto
+previo para rollback.
 
-El backend distribuido carga automaticamente el artefacto
-`person_pet_foyer-c293bc752c48-seed42` al activar un perfil que todavia no tenga
-un filtro personalizado. En el panel aparece como `Activo incluido`, junto con
-su recall y supresion medidos. No es necesario conservar los CSV ni volver a
-entrenar en la instalacion del usuario.
+La imagen estandar tambien distribuye un Transformer relativo de ocupacion.
+Este modelo puntua habitaciones candidatas mediante tipo y estado de sensor,
+gaps temporales y relacion de adyacencia, sin codificar nombres absolutos. Se
+carga automaticamente al activar cualquier perfil y no requiere entrenamiento
+inicial del usuario.
+
+Las entidades Frigate pueden asignarse como `person_confirmation` o
+`pet_confirmation`. Sus cambios se guardan en SQLite como etiquetas, no
+modifican presencia directamente y habilitan una adaptacion automatica
+validada cuando se alcanzan los minimos configurados.
+
+El backend distribuido carga automaticamente un artefacto incluido al activar un
+perfil que todavia no tenga un filtro personalizado. En el panel aparece como
+`Activo incluido`, junto con sus metricas de recall y supresion. Los CSV usados
+para generar ese artefacto no se distribuyen ni son necesarios en la instalacion
+del usuario.
 
 La imagen publicada instala las dependencias ML de forma predeterminada. Para
 construir una variante liviana que use solo reglas temporales:
@@ -143,13 +177,13 @@ docker build -f inferencia_hub/Dockerfile \
   -t transformer-presence-backend:slim .
 ```
 
-### Opción 1: Entrenamiento Estándar (Rápido)
+### Opcion 1: entrenamiento rapido
 
 ```bash
-curl -X POST http://localhost:8080/api/train_model \
+curl -X POST http://localhost:8081/api/train_model \
   -H "Content-Type: application/json" \
   -d '{
-    "csv_path": "/data/history-1mes_sorted.csv",
+    "csv_path": "/data/historial.csv",
     "debounce_seconds": 2,
     "min_gap_seconds": 2,
     "max_gap_seconds": 600,
@@ -160,15 +194,15 @@ curl -X POST http://localhost:8080/api/train_model \
   }'
 ```
 
-### Opción 2: Entrenamiento Completo (Recomendado para Historial Largo)
+### Opcion 2: entrenamiento completo
 
-Procesa 10x más transiciones sin descartes excesivos:
+Usa parametros menos restrictivos para historiales largos:
 
 ```bash
-curl -X POST http://localhost:8080/api/train_model_full \
+curl -X POST http://localhost:8081/api/train_model_full \
   -H "Content-Type: application/json" \
   -d '{
-    "csv_path": "/data/history-1mes_sorted.csv",
+    "csv_path": "/data/historial.csv",
     "debounce_seconds": 1,
     "min_gap_seconds": 0,
     "max_gap_seconds": 900,
@@ -198,10 +232,10 @@ Abrir:
 ## Simular desde CSV
 
 ```bash
-curl -X POST http://localhost:8080/api/replay_csv \
+curl -X POST http://localhost:8081/api/replay_csv \
   -H "Content-Type: application/json" \
   -d '{
-    "csv_path": "/data/history-1mes.csv",
+    "csv_path": "/data/historial.csv",
     "speed_events_per_second": 20,
     "debounce_seconds": 2,
     "max_events": 1200,
@@ -218,13 +252,13 @@ curl -X POST http://localhost:8080/api/replay_csv \
 Obtener metricas acumuladas (calidad de mapa, no adyacencias, latencia y personas):
 
 ```bash
-curl http://localhost:8080/api/evaluation_metrics
+curl http://localhost:8081/api/evaluation_metrics
 ```
 
 Obtener o actualizar mapa real de referencia desde texto de adyacencia:
 
 ```bash
-curl -X POST http://localhost:8080/api/layout_reference \
+curl -X POST http://localhost:8081/api/layout_reference \
   -H "Content-Type: application/json" \
   -d '{
     "adjacency_text": "bedroom: sittingroom\nsittingroom: bedroom, entertainment_room\nentertainment_room: sittingroom, foyer\nfoyer: entertainment_room, kitchen, living\nkitchen: foyer\nliving: foyer"
@@ -234,7 +268,7 @@ curl -X POST http://localhost:8080/api/layout_reference \
 Controlar replay desde API (pause/start/reset):
 
 ```bash
-curl -X POST http://localhost:8080/api/replay_control \
+curl -X POST http://localhost:8081/api/replay_control \
   -H "Content-Type: application/json" \
   -d '{
     "action": "pause"

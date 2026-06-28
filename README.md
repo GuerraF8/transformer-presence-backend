@@ -1,12 +1,13 @@
 # Transformer Presence Backend
 
-Backend FastAPI para Transformer Presence. Recibe eventos desde Home Assistant, mantiene el estado de presencia, entrena modelos desde historicos CSV y sirve el panel web que la integracion HACS abre como iframe.
+Backend FastAPI para Transformer Presence. Recibe eventos desde Home Assistant,
+mantiene el estado de presencia, entrena o adapta modelos desde historicos CSV
+y sirve el panel web que la integracion HACS abre como iframe.
 
-La version `0.7.1` incorpora un Transformer de ocupacion preentrenado que
-funciona con layouts arbitrarios y aprendizaje en vivo mediante confirmaciones
-de persona y mascota. Los perfiles editables, areas de Home Assistant,
-entidades confirmadas y layouts arbitrarios se mantienen. Consulta
-[ARCHITECTURE.md](ARCHITECTURE.md).
+La imagen estandar incluye un Transformer relativo de ocupacion y un
+clasificador de movimiento humano/mascota. Ambos funcionan con layouts
+definidos por perfil, areas de Home Assistant y entidades confirmadas por el
+usuario. Consulta [ARCHITECTURE.md](ARCHITECTURE.md) para la estructura interna.
 
 `GET /api/sim_data` publica en `presence` los campos estables usados por las entidades de Home Assistant: `inferred_presence`, `people_estimate`, `confidence` y `updated_at`, ademas de `current_room` y `active_rooms`.
 
@@ -66,16 +67,16 @@ El compose monta:
 - `inferencia_hub_data:/app/data` para estado runtime, modelos, metricas, configuracion e historial SQLite.
 - `./data:/data:ro` para CSV historicos que quieras usar en replay o entrenamiento.
 
-La imagen ya incluye checkpoints preentrenados generados desde los historiales
-locales del proyecto. Esos CSV son insumos privados de build y no forman parte
-del paquete instalado; solo necesitas montar `./data` si quieres reproducir
-replays o regenerar modelos.
+La imagen ya incluye checkpoints preentrenados. Los CSV usados para generar
+esos artefactos no forman parte del paquete instalado. Monta `./data` solo si
+quieres ejecutar replays, entrenar con tus propios historiales o regenerar
+modelos.
 
 Para entrenar o reproducir historicos, deja tus CSV en `data/` y usa rutas del contenedor como:
 
 ```text
-/data/history-1mes_sorted.csv
-/data/history-1mes.csv
+/data/historial_ordenado.csv
+/data/historial.csv
 ```
 
 ## Variables principales
@@ -121,7 +122,7 @@ reemplazo atomico y rollback.
 
 ## Historial de presencia
 
-El backend 0.4.0 persiste eventos brutos e inferencias de `listen`, `replay` y
+El backend persiste eventos brutos e inferencias de `listen`, `replay` y
 `simulator` en SQLite. La configuracion de retencion y modos se administra desde
 el modal del panel y queda guardada en la misma base de datos.
 
@@ -189,11 +190,11 @@ Luego configura la URL base del backend con la URL publicada por este compose.
 
 ## Perfiles, areas y entidades
 
-Las instalaciones nuevas comienzan sin perfil activo. Desde el modal del panel
+Al iniciar una instalacion se debe activar un perfil. Desde el modal del panel
 se puede copiar `real_home`, crear un perfil manual o detectar las areas
-publicadas por Home Assistant. Cada perfil conserva habitaciones con slug
-estable, areas vinculadas, entidades confirmadas, categorias de sensor y
-conexiones del mapa.
+publicadas por Home Assistant. Cada perfil define habitaciones con slug estable,
+areas vinculadas, entidades confirmadas, categorias de sensor y conexiones del
+mapa.
 
 Los endpoints principales son:
 
@@ -203,11 +204,9 @@ Los endpoints principales son:
 - `POST /api/profiles/{profile_id}/infer-layout`
 
 Las actualizaciones usan revision optimista y devuelven `409` ante un borrador
-obsoleto. Agregar, quitar o cambiar sensores dentro de las mismas habitaciones
-no invalida el mapa aprendido; el estado se reinicia solo si cambian las
-habitaciones o las conexiones del layout. Sin perfil activo, `/api/events` no
-procesa inferencia y las entidades de Home Assistant permanecen no disponibles.
-Los modelos se guardan por perfil en `/app/data/model_state/profiles/{profile_id}`.
+obsoleto. Sin perfil activo, `/api/events` no procesa inferencia y las entidades
+de Home Assistant permanecen no disponibles. Los modelos se guardan por perfil
+en `/app/data/model_state/profiles/{profile_id}`.
 
 ## Seguridad de entidades reales
 
@@ -255,10 +254,9 @@ humano y el modelo relativo selecciona el umbral de ocupacion sobre una reserva
 cronologica.
 La imagen liviana se puede construir explicitamente con `INSTALL_ML=0`; en ese
 caso se mantienen las reglas temporales.
-La ejecucion reproducible del entrenamiento supervisado con los historiales
-internos del proyecto esta documentada en
+La validacion del artefacto supervisado distribuido esta documentada en
 [SUPERVISED_TRAINING_REPORT.md](SUPERVISED_TRAINING_REPORT.md). Los historiales
-privados no forman parte del repositorio.
+privados usados para esa validacion no forman parte del repositorio.
 
 Luego cambia en `.env`:
 

@@ -17,6 +17,10 @@ Fecha de ejecución: 14 de junio de 2026.
 
 ## Datos
 
+Los archivos listados corresponden a los insumos privados usados para validar
+el artefacto distribuido. No forman parte del repositorio; los hashes permiten
+verificar trazabilidad cuando se dispone de esos datos en un entorno autorizado.
+
 | Archivo | SHA-256 |
 |---|---|
 | `history-1mes.csv` | `2f0b1cc3e9d99b00dfe70c83aca72e2172d1d9ee9e616193ff86d8b33f391b13` |
@@ -61,9 +65,9 @@ El ajuste supervisado de ocupación de `foyer` obtuvo recall de 89,54% y F1 de
 
 - El reporte quedó disponible mediante
   `GET /api/training/reports/20260614T224850Z-bcbf33a2`.
-- El segundo entrenamiento conservó el artefacto anterior.
-- `POST /api/model/rollback` restauró la ejecución anterior.
-- Una segunda llamada restauró la ejecución final.
+- Se valido que el artefacto anterior queda disponible para rollback.
+- `POST /api/model/rollback` restauro el artefacto anterior.
+- Una segunda llamada restauro el artefacto validado en este reporte.
 - El checkpoint reproducible
   `person_pet_foyer-c293bc752c48-seed42` se distribuye dentro de la imagen y se
   carga automáticamente al activar un perfil sin modelo personalizado.

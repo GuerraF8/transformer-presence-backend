@@ -124,8 +124,8 @@ Cuando se entrega mas de un CSV, se puede usar una clave estable:
 
 ```bash
 python generar_resultados_presencia.py \
-  --input antes=data/historial_antes.csv \
-  --input despues=data/historial_despues.csv \
+  --input periodo_1=data/historial_periodo_1.csv \
+  --input periodo_2=data/historial_periodo_2.csv \
   --count-inferred sensor.inferencia_de_presencia_2 \
   --count-reference sensor.num_in_house \
   --output-dir outputs/presencia
@@ -297,4 +297,3 @@ python generar_resultados_presencia.py \
   --offline-emissions-country CHL \
   --output-dir outputs/presencia
 ```
-
