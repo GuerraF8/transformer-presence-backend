@@ -178,6 +178,47 @@ entrada, ejemplos de mapeo de habitaciones, diferencias entre ocupacion,
 camara, silla y movimiento, y recomendaciones para no publicar historiales con
 datos sensibles.
 
+## Analisis de sostenibilidad de inferencias ML
+
+El repositorio incluye `analizar_sostenibilidad_inferencias.py` para medir con
+CodeCarbon el costo de inferencias PyTorch reales usando los modelos
+distribuidos con el backend. La carga es sintetica y deterministica, por lo que
+no requiere historiales privados ni modifica endpoints de la API.
+
+Instala las dependencias ML y CodeCarbon:
+
+```bash
+pip install -r inferencia_hub/requirements-ml.txt
+pip install codecarbon
+```
+
+Ejecuta el benchmark con medicion offline para Chile:
+
+```bash
+python analizar_sostenibilidad_inferencias.py \
+  --offline-emissions-country CHL \
+  --output-dir outputs/sostenibilidad_inferencias
+```
+
+El script genera `sostenibilidad_inferencias.json`,
+`sostenibilidad_inferencias.md` y un CSV de CodeCarbon por escenario:
+`relative_occupancy`, `pet_filter` y `combined_pipeline`. Los resultados
+incluyen latencia, throughput, dispositivo PyTorch, llamadas totales, emisiones
+estimadas y emisiones normalizadas por 1.000 y 1.000.000 de inferencias.
+
+CodeCarbon entrega una estimacion dependiente del hardware, carga de fondo,
+modo energetico y sensores disponibles del sistema. Para comparar ejecuciones,
+usa la misma maquina, la misma configuracion energetica y la misma version de
+dependencias. Para validar el flujo sin medir emisiones:
+
+```bash
+python analizar_sostenibilidad_inferencias.py \
+  --iterations 10 \
+  --warmup 1 \
+  --min-duration-seconds 0 \
+  --no-codecarbon
+```
+
 ## Home Assistant
 
 Instala la integracion desde:

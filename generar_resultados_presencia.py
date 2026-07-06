@@ -88,7 +88,7 @@ DEFAULT_CONFIRMATION_REFERENCES = {
     "input_boolean.study_occupied": "Study occ.",
     "input_boolean.tvroom_occupied": "TV occ.",
     "binary_sensor.hall_person_occupancy": "Hall camera",
-    "binary_sensor.sittingroom_person_occupancy": "Sitting camera",
+    "binary_sensor.sittingroom_person_occupancy": "TV camera",
     "binary_sensor.chair_occupied": "Chair",
 }
 
@@ -105,6 +105,7 @@ DEFAULT_DIRECT_COMPARISONS = {
     "Entertainment": [
         "binary_sensor.entertainment_room_sensor_motion",
         "input_boolean.tvroom_occupied",
+        "binary_sensor.sittingroom_person_occupancy",
     ],
     "Foyer": [
         "binary_sensor.hall_person_occupancy",
@@ -120,7 +121,6 @@ DEFAULT_DIRECT_COMPARISONS = {
     ],
     "Study/Sitting": [
         "input_boolean.study_occupied",
-        "binary_sensor.sittingroom_person_occupancy",
         "binary_sensor.chair_occupied",
     ],
 }
